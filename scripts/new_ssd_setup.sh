@@ -88,9 +88,7 @@ run_stage_1() {
     print_info "Creating workspace and cloning core-sim..."
     cd "$WORKSPACE_DIR"
     rm -rf core-sim  # Clean up any previous clone
-    su - ${FSAI_USER} -c "git clone $CORE_SIM_REPO"
-    cd core-sim
-    su - ${FSAI_USER} -c "git switch dev"
+    su - ${FSAI_USER} -c "git clone $CORE_SIM_REPO && cd core-sim && git switch dev"
     EUFS_MASTER_PATH="$WORKSPACE_DIR/core-sim"
     if ! grep -q "export EUFS_MASTER" ~/.bashrc; then
       echo "export EUFS_MASTER=$EUFS_MASTER_PATH" >> ~/.bashrc
