@@ -5,7 +5,8 @@
 EUFS_CMD="ros2 launch eufs_launcher hardware.launch.py"
 ZED_CMD="ros2 launch zed_wrapper zed_camera.launch.py camera_model:=zed2"
 
-# Define the log directory.
+# Define the workspace and log directory.
+WORKSPACE_DIR="/home/bristol-fsai/core-sim"
 LOG_DIR="/home/bristol-fsai/logs"
 # --- End Configuration ---
 
@@ -59,14 +60,34 @@ start_process() {
 # --- Main Execution ---
 echo "🔄  Restarting all ROS nodes..."
 
-# --- 1. ENVIRONMENT SETUP ---
+# --- 1. ENVIRONMENT AND CODE SETUP ---
 echo
 echo "--- Sourcing ROS environment ---"
 # Source the necessary ROS environment setup files.
 source /opt/ros/galactic/setup.bash
-source /home/bristol-fsai/core-sim/install/setup.bash
-echo "✅  Environment ready."
+echo "✅  ROS Galactic environment sourced."
 echo "--------------------------------"
+
+# Navigate to the workspace directory.
+cd "$WORKSPACE_DIR" || { echo "❌ Error: Could not navigate to $WORKSPACE_DIR. Exiting."; exit 1; }
+
+echo
+echo "--- Updating and Building Workspace ---"
+echo "⬇️  Pulling latest changes from git..."
+git pull
+echo "✅  Git pull complete."
+echo
+
+echo "🛠️  Building workspace with colcon..."
+colcon build --symlink-install --cmake-args=-DCMAKE_BUILD_TYPE=Release
+echo "✅  Colcon build complete."
+echo
+
+echo "📦  Sourcing the local workspace..."
+source install/setup.bash
+echo "✅  Workspace environment ready."
+echo "--------------------------------"
+
 
 # Ensure the log directory exists.
 mkdir -p "$LOG_DIR"
@@ -82,8 +103,8 @@ echo "--------------------------------"
 # --- 3. LAUNCH PHASE ---
 echo
 echo "--- Starting all nodes now ---"
-start_process "$EUFS_CMD" "EUFS" "ros1"
-start_process "$ZED_CMD" "ZED Camera" "ros2"
+start_process "$EUFS_CMD" "EUFS" "eufs"
+start_process "$ZED_CMD" "ZED Camera" "zed"
 echo "------------------------------"
 echo "✅  Restart sequence complete."
 
