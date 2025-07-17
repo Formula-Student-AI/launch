@@ -57,6 +57,7 @@ run_stage_1() {
     if ! grep -q "source /opt/ros/galactic/setup.bash" ~/.bashrc; then
       echo "source /opt/ros/galactic/setup.bash" >> ~/.bashrc
     fi
+    su - ${FSAI_USER} -c "source /opt/ros/galactic/setup.bash"
 
     # --- NEW: SSH Key Check and Setup ---
     print_info "Checking SSH key for GitHub..."
@@ -85,10 +86,20 @@ run_stage_1() {
     git config --global user.name "bristol-fsai"
     git config --global user.email "bristol.fsai@gmail.com"
 
-    print_info "Creating workspace and cloning core-sim..."
+    print_info "Checking for core-sim repository..."
     cd "$WORKSPACE_DIR"
-    rm -rf core-sim  # Clean up any previous clone
-    su - ${FSAI_USER} -c "git clone $CORE_SIM_REPO && cd core-sim && git switch dev"
+
+    # Clone if the directory doesn't exist, otherwise pull the latest changes.
+    if [ ! -d "core-sim" ]; then
+        print_info "Cloning core-sim repository for the first time..."
+        su - ${FSAI_USER} -c "git clone $CORE_SIM_REPO && cd core-sim && git switch dev"
+    else
+        print_info "core-sim directory found. Pulling latest changes from the 'dev' branch..."
+        # Ensure correct ownership to prevent potential git permission issues
+        sudo chown -R ${FSAI_USER}:${FSAI_USER} core-sim
+        su - ${FSAI_USER} -c "cd core-sim && git switch dev && git pull"
+    fi
+
     EUFS_MASTER_PATH="$WORKSPACE_DIR/core-sim"
     if ! grep -q "export EUFS_MASTER" ~/.bashrc; then
       echo "export EUFS_MASTER=$EUFS_MASTER_PATH" >> ~/.bashrc
@@ -122,7 +133,7 @@ run_stage_1() {
     print_success "Python dependencies installed successfully."
 
     print_info "Building and sourcing core-sim"
-    su - ${FSAI_USER} -c "colcon build --symlink-install --cmake-args=-DCMAKE_BUILD_TYPE=Release"
+    su - ${FSAI_USER} -c "cd $WORKSPACE_DIR/core-sim && colcon build --symlink-install --cmake-args=-DCMAKE_BUILD_TYPE=Release"
     source install/setup.bash
     print_success "Successfully built core-sim"
 
