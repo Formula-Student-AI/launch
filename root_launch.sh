@@ -5,10 +5,10 @@ echo "----------------------"
 
 echo "Ensuring permissions and folders are setup"
 mkdir /home/bristol-fsai/logs &
-sudo chmod +x /home/bristol-fsai/launch/can_launch
-sudo chmod +x /home/bristol-fsai/launch/user_launch
-sudo chmod +x /home/bristol-fsai/launch/ros_script_1
-sudo chmod +x /home/bristol-fsai/launch/ros_script_1
+sudo chmod +x /home/bristol-fsai/launch/can_launch.sh
+sudo chmod +x /home/bristol-fsai/launch/user_launch.sh
+sudo chmod +x /home/bristol-fsai/launch/ros_script_1.sh
+sudo chmod +x /home/bristol-fsai/launch/ros_script_1.sh
 
 # Enable NVIDIA driver
 echo "Enabling NVIDIA drivers"
@@ -28,9 +28,9 @@ sudo modprobe vcan
 echo "Enabled vcan"
 
 # Setup CAN link
-sudo /home/bristol-fsai/launch/can_launch &
+sudo /home/bristol-fsai/launch/can_launch.sh &
 
 # Launch user commands
 echo "Launching user commands"
-su - bristol-fsai -c /home/bristol-fsai/launch/user_launch
+su - bristol-fsai -c /home/bristol-fsai/launch/user_launch.sh
 
