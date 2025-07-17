@@ -52,16 +52,29 @@ run_stage_1() {
       echo "source /opt/ros/galactic/setup.bash" >> ~/.bashrc
     fi
 
-    print_info "Setting up SSH key for GitHub..."
+    # --- NEW: SSH Key Check and Setup ---
+    print_info "Checking SSH key for GitHub..."
     if [ ! -f ~/.ssh/id_ed25519 ]; then
+        print_info "No existing SSH key found. Generating a new one..."
         ssh-keygen -t ed25519 -C "$GIT_EMAIL" -N "" -f ~/.ssh/id_ed25519
-    else
-        print_warning "Existing SSH key found. Skipping generation."
     fi
-    eval "$(ssh-agent -s)" && ssh-add ~/.ssh/id_ed25519
-    print_action "Please add the following public SSH key to your GitHub account."
-    echo -e "\n--- Your Public SSH Key ---\n$(cat ~/.ssh/id_ed25519.pub)\n--------------------------"
-    read -p "Press [Enter] to continue after adding the key to GitHub..."
+    
+    # Start agent and add key, hiding verbose output
+    eval "$(ssh-agent -s)" > /dev/null
+    ssh-add ~/.ssh/id_ed25519 > /dev/null
+
+    print_info "Testing SSH connection to GitHub..."
+    # Use '|| true' to prevent script exit on authentication failure (which is expected if key is not yet added)
+    AUTH_RESPONSE=$(ssh -o StrictHostKeyChecking=no -T git@github.com 2>&1 || true)
+
+    if [[ "$AUTH_RESPONSE" == *"successfully authenticated"* ]]; then
+        print_success "SSH key is already configured on GitHub."
+    else
+        print_warning "SSH key is not yet configured on GitHub."
+        print_action "Please add the following public SSH key to your GitHub account:"
+        echo -e "\n--- Your Public SSH Key ---\n$(cat ~/.ssh/id_ed25519.pub)\n--------------------------"
+        read -p "Press [Enter] to continue after adding the key to GitHub..."
+    fi
 
     print_info "Creating workspace and cloning core-sim..."
     mkdir -p "$WORKSPACE_DIR/src" && cd "$WORKSPACE_DIR/src"
@@ -171,29 +184,6 @@ run_stage_3() {
     print_info "You can test the installation by running the ZED Diagnostics tool:"
     print_info "/usr/local/zed/tools/ZED_Diagnostic"
     read -p "Press [Enter] to continue once you have tested the camera..."
-
-    print_info "Installing zed-ros2-wrapper..."
-    cd "$WORKSPACE_DIR/src"
-
-    print_action "The 'core-sim' project may already include a compatible ZED wrapper."
-    read -p "Do you need to manually clone and patch the zed-ros2-wrapper? (y/N) " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        print_info "Cloning zed-ros2-wrapper and its dependencies..."
-        git clone https://github.com/stereolabs/zed-ros2-wrapper.git
-        cd zed-ros2-wrapper
-        git clone https://github.com/stereolabs/zed-ros2-interfaces.git
-        git clone https://github.com/ros-drivers/nmea_msgs.git
-        cd ..
-
-        print_info "Patching wrapper packages for ROS 2 Galactic..."
-        ZED_WRAPPER_DIR="$WORKSPACE_DIR/src/zed-ros2-wrapper"
-        find "$ZED_WRAPPER_DIR" -type f \( -name "CMakeLists.txt" -o -name "package.xml" \) -exec sed -i 's/foxy/galactic/g' {} +
-        find "$ZED_WRAPPER_DIR" -type f \( -name "CMakeLists.txt" -o -name "package.xml" \) -exec sed -i 's/FOUND_FOXY/FOUND_GALACTIC/g' {} +
-        print_info "Patching shutdown callback function..."
-        find "$ZED_WRAPPER_DIR" -type f \( -name "*.cpp" -o -name "*.hpp" \) -exec sed -i 's/add_pre_shutdown_callback/add_on_shutdown_callback/g' {} +
-        print_success "Patching complete."
-    fi
 
     print_info "Installing final ROS dependencies..."
     sudo apt install -y ros-galactic-backward-ros ros-galactic-diagnostic-updater ros-galactic-geographic-msgs ros-galactic-robot-localization
