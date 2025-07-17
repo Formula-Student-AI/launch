@@ -19,7 +19,7 @@ WORKSPACE_DIR="$HOME"
 STATE_FILE="$HOME/.ssd_setup"
 
 # --- Helper Functions ---
-print_info() { echo -e "\n\e[34m[INFO] $1\e[0m"; }
+print_info() { echo -e "\e[34m[INFO] $1\e[0m"; }
 print_success() { echo -e "\e[32m[SUCCESS] $1\e[0m"; }
 print_warning() { echo -e "\e[33m[WARNING] $1\e[0m"; }
 print_action() { echo -e "\n\e[31m[ACTION REQUIRED] $1\e[0m"; }
@@ -81,6 +81,9 @@ run_stage_1() {
         read -p "Press [Enter] to continue after adding the key to GitHub..."
     fi
 
+    git config --global user.name "bristol-fsai"
+    git config --global user.email "bristol.fsai@gmail.com"
+
     print_info "Creating workspace and cloning core-sim..."
     cd "$WORKSPACE_DIR"
     git clone "$CORE_SIM_REPO"
@@ -89,6 +92,32 @@ run_stage_1() {
       echo "export EUFS_MASTER=$EUFS_MASTER_PATH" >> ~/.bashrc
     fi
     export EUFS_MASTER=$EUFS_MASTER_PATH
+
+    print_info "Installing additional ROS 2 dependencies..."
+    sudo apt install libgazebo11-dev ros-galactic-gazebo-ros-pkgs ros-galactic-joint-state-publisher ros-galactic-xacro ros-galactic-ackermann-msgs -y
+    sudo apt install ros-galactic-gazebo-plugins libyaml-cpp-dev ros-galactic-rqt ros-galactic-rqt-common-plugins ros-galactic-ament-package -y
+    print_success "ROS 2 Galactic and dependencies installed successfully."
+
+    print_info "Installing colcon and rosdep..."
+    sudo apt install python3-pip -y
+    pip3 install colcon-common-extensions -U
+    source ~/.bashrc
+    sudo apt install python3-rosdep -y
+    sudo rosdep init
+    rosdep update
+
+    print_info "Installing additional Python dependencies..."
+    cd "$WORKSPACE_DIR"
+    git switch dev
+    rosdep install --from-paths $EUFS_MASTER --ignore-src -r -y
+    sudo pip install -r eufs_sim/perception/requirements.txt
+    pip install --upgrade numpy
+    sudo apt install ros-galactic-vision-msgs -y
+    colcon build --symlink-install
+    # If using zed-ros2-wrapper package
+    colcon build --symlink-install --cmake-args=-DCMAKE_BUILD_TYPE=Release
+    source install/setup.bash
+    print_success "Python dependencies installed successfully."
 
     # --- NVIDIA Driver Installation ---
     print_info "Installing NVIDIA Drivers..."
