@@ -179,8 +179,8 @@ run_stage_2() {
     print_info "Installing NVIDIA CUDA Toolkit..."
     wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.1-1_all.deb
     sudo dpkg -i cuda-keyring_1.1-1_all.deb
-    sudo apt-get-get update > /dev/null
-    sudo apt-get-get -y install cuda-toolkit > /dev/null
+    sudo apt-get update > /dev/null
+    sudo apt-get -y install cuda-toolkit > /dev/null
     rm cuda-keyring_1.1-1_all.deb
 
     print_info "Adding CUDA paths to .bashrc..."
