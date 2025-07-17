@@ -101,23 +101,23 @@ run_stage_1() {
 
     print_info "Installing colcon and rosdep..."
     sudo apt install python3-pip -y
-    pip3 install colcon-common-extensions -U
-    source ~/.bashrc
+    su - ${FSAI_USER} -c "pip3 install colcon-common-extensions -U"
+    su - ${FSAI_USER} -c "source ~/.bashrc"
     sudo apt install python3-rosdep -y
     sudo rosdep init
-    rosdep update
+    su - ${FSAI_USER} -c "rosdep update"
 
     print_info "Installing additional Python dependencies..."
-    cd "$WORKSPACE_DIR"
+    cd "$WORKSPACE_DIR/core-sim"
     git switch dev
-    rosdep install --from-paths $EUFS_MASTER --ignore-src -r -y
+    su - ${FSAI_USER} -c "rosdep install --from-paths $EUFS_MASTER --ignore-src -r -y"
     sudo pip install -r eufs_sim/perception/requirements.txt
-    pip install --upgrade numpy
+    su - ${FSAI_USER} -c "pip install --upgrade numpy"
     sudo apt install ros-galactic-vision-msgs -y
     print_success "Python dependencies installed successfully."
 
     print_info "Building and sourcing core-sim"
-    colcon build --symlink-install --cmake-args=-DCMAKE_BUILD_TYPE=Release
+    su - ${FSAI_USER} -c "colcon build --symlink-install --cmake-args=-DCMAKE_BUILD_TYPE=Release"
     source install/setup.bash
     print_success "Successfully built core-sim"
 
