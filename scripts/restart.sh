@@ -127,8 +127,8 @@ echo "--------------------------------"
 # --- 3. LAUNCH PHASE ---
 echo
 echo "--- Starting all processes now ---"
-start_ros_process "$EUFS_CMD" "EUFS" "eufs"
-start_ros_process "$ZED_CMD" "ZED Camera" "zed"
+start_ros_process "$EUFS_CMD" "EUFS" "ros1"
+start_ros_process "$ZED_CMD" "ZED Camera" "ros2"
 start_can_logger # Start the CAN logger
 echo "------------------------------"
 echo "✅  Restart sequence complete."
