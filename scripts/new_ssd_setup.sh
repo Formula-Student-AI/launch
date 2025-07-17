@@ -15,7 +15,7 @@ CORE_SIM_REPO="git@github.com:Formula-Student-AI/core-sim.git"
 LAUNCH_REPO="git@github.com:Formula-Student-AI/launch.git"
 GIT_EMAIL="bristol.fsai@gmail.com"
 GIT_USERNAME="bristol-fsai"
-WORKSPACE_DIR="$HOME"
+WORKSPACE_DIR="/home/$FSAI_USER"
 STATE_FILE="$HOME/.ssd_setup"
 
 # --- Helper Functions ---
@@ -88,7 +88,8 @@ run_stage_1() {
     print_info "Creating workspace and cloning core-sim..."
     cd "$WORKSPACE_DIR"
     rm -rf core-sim  # Clean up any previous clone
-    git clone "$CORE_SIM_REPO"
+    su - ${FSAI_USER} -c "git clone $CORE_SIM_REPO"
+    su - ${FSAI_USER} -c "git switch dev"
     EUFS_MASTER_PATH="$WORKSPACE_DIR/core-sim"
     if ! grep -q "export EUFS_MASTER" ~/.bashrc; then
       echo "export EUFS_MASTER=$EUFS_MASTER_PATH" >> ~/.bashrc
@@ -115,7 +116,6 @@ run_stage_1() {
 
     print_info "Installing additional Python dependencies..."
     cd "$WORKSPACE_DIR/core-sim"
-    git switch dev
     su - ${FSAI_USER} -c "rosdep install --from-paths $EUFS_MASTER --ignore-src -r -y"
     sudo pip install -r eufs_sim/perception/requirements.txt
     su - ${FSAI_USER} -c "pip install --upgrade numpy"
