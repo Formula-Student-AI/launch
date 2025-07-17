@@ -113,11 +113,12 @@ run_stage_1() {
     sudo pip install -r eufs_sim/perception/requirements.txt
     pip install --upgrade numpy
     sudo apt install ros-galactic-vision-msgs -y
-    colcon build --symlink-install
-    # If using zed-ros2-wrapper package
+    print_success "Python dependencies installed successfully."
+
+    print_info "Building and sourcing core-sim"
     colcon build --symlink-install --cmake-args=-DCMAKE_BUILD_TYPE=Release
     source install/setup.bash
-    print_success "Python dependencies installed successfully."
+    print_success "Successfully built core-sim"
 
     # --- NVIDIA Driver Installation ---
     print_info "Installing NVIDIA Drivers..."
@@ -214,7 +215,6 @@ run_stage_3() {
     sudo cp "$HOME/launch/rc.local" "/etc/rc.local"
     sudo chmod +x /etc/rc.local
     # Clean up the cloned repository
-    rm -rf "$HOME/launch"
     print_success "rc.local service file has been configured."
     # --- End of new section ---
 
