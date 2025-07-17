@@ -15,8 +15,8 @@ CORE_SIM_REPO="git@github.com:Formula-Student-AI/core-sim.git"
 LAUNCH_REPO="git@github.com:Formula-Student-AI/launch.git"
 GIT_EMAIL="bristol.fsai@gmail.com"
 GIT_USERNAME="bristol-fsai"
-WORKSPACE_DIR="$HOME/eufs_ws"
-STATE_FILE="$HOME/.eufs_setup_state"
+WORKSPACE_DIR="$HOME"
+STATE_FILE="$HOME/.ssd_setup"
 
 # --- Helper Functions ---
 print_info() { echo -e "\n\e[34m[INFO] $1\e[0m"; }
@@ -77,9 +77,9 @@ run_stage_1() {
     fi
 
     print_info "Creating workspace and cloning core-sim..."
-    mkdir -p "$WORKSPACE_DIR/src" && cd "$WORKSPACE_DIR/src"
+    cd "$WORKSPACE_DIR"
     git clone "$CORE_SIM_REPO"
-    EUFS_MASTER_PATH="$WORKSPACE_DIR/src/core-sim"
+    EUFS_MASTER_PATH="$WORKSPACE_DIR/core-sim"
     if ! grep -q "export EUFS_MASTER" ~/.bashrc; then
       echo "export EUFS_MASTER=$EUFS_MASTER_PATH" >> ~/.bashrc
     fi
@@ -200,8 +200,8 @@ run_stage_3() {
     colcon build --symlink-install --cmake-args=-DCMAKE_BUILD_TYPE=Release
 
     print_info "Sourcing the final workspace overlay in .bashrc..."
-    if ! grep -q "source $WORKSPACE_DIR/install/setup.bash" ~/.bashrc; then
-      echo "source $WORKSPACE_DIR/install/setup.bash" >> ~/.bashrc
+    if ! grep -q "source $WORKSPACE_DIR/core-sim/install/setup.bash" ~/.bashrc; then
+      echo "source $WORKSPACE_DIR/core-sim/install/setup.bash" >> ~/.bashrc
     fi
 
     print_info "Configuring git credentials..."
