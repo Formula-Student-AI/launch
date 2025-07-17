@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+mkdir /home/bristol-fsai/logs 2&>1
+
 # Enable NVIDIA driver
 echo "----------------------"
 echo "Enabling NVIDIA drivers"
