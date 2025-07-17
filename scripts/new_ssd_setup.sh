@@ -57,7 +57,6 @@ run_stage_1() {
     if ! grep -q "source /opt/ros/galactic/setup.bash" ~/.bashrc; then
       echo "source /opt/ros/galactic/setup.bash" >> ~/.bashrc
     fi
-    su - ${FSAI_USER} -c "source /opt/ros/galactic/setup.bash"
 
     # --- NEW: SSH Key Check and Setup ---
     print_info "Checking SSH key for GitHub..."
@@ -133,8 +132,8 @@ run_stage_1() {
     print_success "Python dependencies installed successfully."
 
     print_info "Building and sourcing core-sim"
-    su - ${FSAI_USER} -c "cd $WORKSPACE_DIR/core-sim && colcon build --symlink-install --cmake-args=-DCMAKE_BUILD_TYPE=Release"
-    source install/setup.bash
+    su - ${FSAI_USER} -c "cd $WORKSPACE_DIR/core-sim && source /opt/ros/galactic/setup.bash && colcon build --symlink-install --cmake-args=-DCMAKE_BUILD_TYPE=Release --packages-ignore-regex='^(zed).*'"
+    su - ${FSAI_USER} -c "source install/setup.bash"
     print_success "Successfully built core-sim"
 
     # --- NVIDIA Driver Installation ---
@@ -249,7 +248,7 @@ run_stage_3() {
     rosdep install --from-paths src --ignore-src -r -y
 
     print_info "Building the complete workspace..."
-    colcon build --symlink-install --cmake-args=-DCMAKE_BUILD_TYPE=Release
+    su - ${FSAI_USER} -c "cd $WORKSPACE_DIR/core-sim && source /opt/ros/galactic/setup.bash && colcon build --symlink-install --cmake-args=-DCMAKE_BUILD_TYPE=Release"
 
     print_info "Sourcing the final workspace overlay in .bashrc..."
     if ! grep -q "source $WORKSPACE_DIR/core-sim/install/setup.bash" ~/.bashrc; then
