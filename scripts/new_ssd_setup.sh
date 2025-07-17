@@ -23,7 +23,7 @@ print_info() { echo -e "\n\e[34m[INFO] $1\e[0m"; }
 print_success() { echo -e "\e[32m[SUCCESS] $1\e[0m"; }
 print_warning() { echo -e "\e[33m[WARNING] $1\e[0m"; }
 print_action() { echo -e "\n\e[31m[ACTION REQUIRED] $1\e[0m"; }
-print_stage() { echo -e "\n\e[35m\n================================\n$1\n================================\e[0m\n"; }
+print_stage() { echo -e "\e[1;34m\n================================\n$1\n================================\e[0m\n"; }
 
 # --- Stage 1: Initial System and ROS Setup ---
 run_stage_1() {
@@ -38,6 +38,11 @@ run_stage_1() {
     sudo locale-gen en_US en_US.UTF-8
     sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
     export LANG=en_US.UTF-8
+
+    print_info "Downloading SSH"
+    sudo apt install -y openssh-server
+    sudo ufw allow ssh
+    sudo systemctl disable ssh # Manually start SSH when needed
 
     print_info "Adding required repositories and installing ROS 2 Galactic..."
     sudo apt install -y software-properties-common curl
