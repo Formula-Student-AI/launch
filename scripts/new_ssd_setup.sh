@@ -46,7 +46,7 @@ run_stage_1() {
 
     print_info "Adding required repositories and installing ROS 2 Galactic..."
     sudo apt-get install -y software-properties-common curl > /dev/null
-    sudo add-apt-get-repository universe
+    sudo add-apt-repository universe
     sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | sudo tee /etc/apt-get/sources.list.d/ros2.list > /dev/null
     sudo apt-get update > /dev/null
