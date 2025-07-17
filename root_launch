@@ -1,10 +1,22 @@
 #!/bin/bash
 set -e
 
+<<<<<<< HEAD
+=======
 mkdir /home/bristol-fsai/logs 2&>1
 
 # Enable NVIDIA driver
+>>>>>>> abf5556c122ffc12f19919ccf4cb8484e2979829
 echo "----------------------"
+
+echo "Ensuring permissions and folders are setup"
+mkdir /home/bristol-fsai/logs 2&>1
+sudo chmod +x /home/bristol-fsai/launch/can_launch
+sudo chmod +x /home/bristol-fsai/launch/user_launch
+sudo chmod +x /home/bristol-fsai/launch/ros1_launch
+sudo chmod +x /home/bristol-fsai/launch/ros2_launch
+
+# Enable NVIDIA driver
 echo "Enabling NVIDIA drivers"
 sudo prime-select nvidia
 sudo modprobe nvidia
@@ -22,8 +34,7 @@ sudo modprobe vcan
 echo "Enabled vcan"
 
 # Setup CAN link
-echo "Setting up can link"
-sudo ip link set up can0 type can bitrate 500000 &
+sudo /home/bristol-fsai/launch/can_launch &
 
 # Launch user commands
 echo "Launching user commands"
