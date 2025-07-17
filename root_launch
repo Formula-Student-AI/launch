@@ -1,20 +1,14 @@
 #!/bin/bash
 set -e
 
-<<<<<<< HEAD
-=======
-mkdir /home/bristol-fsai/logs 2&>1
-
-# Enable NVIDIA driver
->>>>>>> abf5556c122ffc12f19919ccf4cb8484e2979829
 echo "----------------------"
 
 echo "Ensuring permissions and folders are setup"
-mkdir /home/bristol-fsai/logs 2&>1
+mkdir /home/bristol-fsai/logs &
 sudo chmod +x /home/bristol-fsai/launch/can_launch
 sudo chmod +x /home/bristol-fsai/launch/user_launch
-sudo chmod +x /home/bristol-fsai/launch/ros1_launch
-sudo chmod +x /home/bristol-fsai/launch/ros2_launch
+sudo chmod +x /home/bristol-fsai/launch/ros_script_1
+sudo chmod +x /home/bristol-fsai/launch/ros_script_1
 
 # Enable NVIDIA driver
 echo "Enabling NVIDIA drivers"
