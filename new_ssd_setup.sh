@@ -11,7 +11,8 @@
 set -e
 
 # --- Configuration ---
-CORE_SIM_REPO="git@github.com:bristol-fsai/core-sim.git"
+CORE_SIM_REPO="git@github.com:Formula-Student-AI/core-sim.git"
+LAUNCH_REPO="git@github.com:Formula-Student-AI/launch.git"
 GIT_EMAIL="bristol.fsai@gmail.com"
 GIT_USERNAME="bristol-fsai"
 WORKSPACE_DIR="$HOME/eufs_ws"
@@ -28,7 +29,7 @@ print_stage() { echo -e "\n\e[35m\n================================\n$1\n=======
 run_stage_1() {
     print_stage "STAGE 1: System, ROS 2, and NVIDIA Driver Installation"
 
-    # --- Initial Setup from previous script ---
+    # --- Initial Setup ---
     print_info "Updating system packages..."
     sudo apt update && sudo apt upgrade -y
 
@@ -77,17 +78,12 @@ run_stage_1() {
     print_info "Recommended drivers for your system:"
     ubuntu-drivers devices
     print_action "The script will now install the recommended drivers using 'autoinstall'."
-    read -p "Press [Enter] to continue, or Ctrl+C to exit and install a specific version manually."
     sudo ubuntu-drivers autoinstall
 
-    print_warning "If your system has both Intel and NVIDIA graphics (especially a newer GPU like the 40 series), it may crash on reboot."
-    read -p "Do you have this type of dual-graphics system? (y/N) " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        print_action "Selecting Intel graphics before reboot to prevent a crash."
-        print_warning "After rebooting and re-running this script, you will be reminded to switch back."
-        sudo prime-select intel
-    fi
+    print_warning "If your system has both Intel and NVIDIA graphics (especially a newer GPU), it may crash on reboot."
+    print_action "Selecting Intel graphics before reboot to prevent a crash."
+    print_warning "After rebooting, you will be reminded to switch back."
+    sudo prime-select intel
 
     # --- Prepare for next stage ---
     echo "STAGE_2" > "$STATE_FILE"
@@ -115,7 +111,6 @@ run_stage_2() {
     fi
 
     print_info "Installing NVIDIA CUDA Toolkit..."
-    # Using the network deb method for Ubuntu 20.04 from NVIDIA's official site
     wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.1-1_all.deb
     sudo dpkg -i cuda-keyring_1.1-1_all.deb
     sudo apt-get update
@@ -131,35 +126,47 @@ run_stage_2() {
     fi
 
     print_info "Installing ZED SDK..."
-    print_action "Please download the ZED SDK v5.0 for Ubuntu 20.04 (with CUDA 12 support) from:"
+    print_action "Please download the ZED SDK v5.0 for Ubuntu 20.04 from:"
     print_info "https://www.stereolabs.com/developers/release/"
     print_action "Place the downloaded '.run' file in your '~/Downloads' directory."
-    
+
     ZED_INSTALLER_PATH=$(find ~/Downloads -name "ZED_SDK_Ubuntu20_cuda*.run" | head -n 1)
     while [ -z "$ZED_INSTALLER_PATH" ]; do
         read -p "Press [Enter] once the file is in ~/Downloads..."
         ZED_INSTALLER_PATH=$(find ~/Downloads -name "ZED_SDK_Ubuntu20_cuda*.run" | head -n 1)
     done
-    
+
     print_info "Found ZED installer: $ZED_INSTALLER_PATH"
     print_info "Installing dependencies and running the installer in silent mode..."
     sudo apt install -y zstd
     chmod +x "$ZED_INSTALLER_PATH"
     "$ZED_INSTALLER_PATH" -- silent
-    # Note: For hardware with limited VRAM (like a 1060 Ti), you might add 'skip_ai=true'
-    # e.g., "$ZED_INSTALLER_PATH" -- silent skip_ai=true
 
     # --- Prepare for next stage ---
     echo "STAGE_3" > "$STATE_FILE"
     print_action "ZED SDK is installed. A final system reboot is required."
-    print_info "After rebooting, please run this script one last time to complete the setup."
+    print_info "After rebooting, please run this script one last time."
     sudo reboot
 }
 
-# --- Stage 3: Workspace Setup and Final Build ---
+# --- Stage 3: Final Configuration and Build ---
 run_stage_3() {
-    print_stage "STAGE 3: ZED Wrapper, Dependencies, and Final Build"
-    
+    print_stage "STAGE 3: Final Configuration and Build"
+
+    # --- NEW: Clone launch repo and set up rc.local ---
+    print_info "Cloning FSAI Launch repository to set up rc.local service..."
+    cd "$HOME"
+    # Clean up previous clone if it exists
+    rm -rf launch
+    git clone "$LAUNCH_REPO"
+    print_info "Copying rc.local file to /etc/ and making it executable..."
+    sudo cp "$HOME/launch/rc.local" "/etc/rc.local"
+    sudo chmod +x /etc/rc.local
+    # Clean up the cloned repository
+    rm -rf "$HOME/launch"
+    print_success "rc.local service file has been configured."
+    # --- End of new section ---
+
     print_action "Please plug in your ZED 2 camera to a USB 3.0 port."
     print_info "You can test the installation by running the ZED Diagnostics tool:"
     print_info "/usr/local/zed/tools/ZED_Diagnostic"
@@ -190,15 +197,13 @@ run_stage_3() {
 
     print_info "Installing final ROS dependencies..."
     sudo apt install -y ros-galactic-backward-ros ros-galactic-diagnostic-updater ros-galactic-geographic-msgs ros-galactic-robot-localization
-    
+
     print_info "Updating and installing all workspace dependencies with rosdep..."
-    # Source ROS to make sure rosdep can find packages
     source /opt/ros/galactic/setup.bash
     cd "$WORKSPACE_DIR"
     rosdep install --from-paths src --ignore-src -r -y
-    
+
     print_info "Building the complete workspace..."
-    # Build with Release flag for ZED wrapper optimization
     colcon build --symlink-install --cmake-args=-DCMAKE_BUILD_TYPE=Release
 
     print_info "Sourcing the final workspace overlay in .bashrc..."
@@ -212,17 +217,14 @@ run_stage_3() {
 
     # --- Cleanup ---
     rm -f "$STATE_FILE"
-    print_success "🎉 All stages complete! Your EUFS development environment is ready. 🎉"
+    print_success "🎉 All stages complete! Your environment is ready. 🎉"
     print_info "Open a NEW terminal to ensure all environment variables are loaded."
-    print_info "You can then launch the simulation from your workspace directory: cd $WORKSPACE_DIR"
 }
 
 
 # ==============================================================================
 # SCRIPT EXECUTION LOGIC
 # ==============================================================================
-# Determine which stage to run based on the state file.
-
 if [ ! -f "$STATE_FILE" ]; then
     run_stage_1
 elif [ "$(cat "$STATE_FILE")" = "STAGE_2" ]; then
