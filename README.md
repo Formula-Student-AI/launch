@@ -1,6 +1,6 @@
 # Setting up a new SSD
 
-1. Download the `new_ssd_setup.sh` script.
+1. Download the `new_ssd_setup.sh` scrip (in the scripts folder).
 2. Make it executable (`chmod +x new_ssd_setup.sh`).
 3. Run it.
 
