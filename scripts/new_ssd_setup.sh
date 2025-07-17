@@ -16,7 +16,7 @@ LAUNCH_REPO="git@github.com:Formula-Student-AI/launch.git"
 GIT_EMAIL="bristol.fsai@gmail.com"
 GIT_USERNAME="bristol-fsai"
 WORKSPACE_DIR="/home/$FSAI_USER"
-STATE_FILE="$HOME/.ssd_setup"
+STATE_FILE="/root/.ssd_setup" # Changed to /root to persist across reboots when run with sudo
 
 # --- Helper Functions ---
 print_info() { echo -e "\e[34m[INFO] $1\e[0m"; }
@@ -31,244 +31,242 @@ run_stage_1() {
 
     # --- Initial Setup ---
     print_info "Updating system packages..."
-    sudo apt-get update > /dev/null && sudo apt-get upgrade -y > /dev/null
+    apt-get update > /dev/null && apt-get upgrade -y > /dev/null
 
     print_info "Setting locale to en_US.UTF-8..."
-    sudo apt-get install -y locales > /dev/null
-    sudo locale-gen en_US en_US.UTF-8
-    sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
+    apt-get install -y locales > /dev/null
+    locale-gen en_US en_US.UTF-8
+    update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
     export LANG=en_US.UTF-8
 
-    print_info "Downloading SSH"
-    sudo apt-get install -y openssh-server > /dev/null
-    sudo ufw allow ssh
-    sudo systemctl disable ssh # Manually start SSH when needed
+    print_info "Installing SSH..."
+    apt-get install -y openssh-server > /dev/null
+    ufw allow ssh
+    systemctl disable ssh # Manually start SSH when needed
 
     print_info "Adding required repositories and installing ROS 2 Galactic..."
-    sudo apt-get install -y software-properties-common curl > /dev/null
-    sudo add-apt-repository universe
-    sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
-    sudo mkdir -p /etc/apt/sources.list.d
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
-    sudo apt-get update > /dev/null
-    sudo apt-get install -y ros-galactic-desktop ros-dev-tools > /dev/null
+    apt-get install -y software-properties-common curl > /dev/null
+    add-apt-repository universe
+    curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
+    mkdir -p /etc/apt/sources.list.d
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null
+    apt-get update > /dev/null
+    apt-get install -y ros-galactic-desktop ros-dev-tools > /dev/null
 
-    print_info "Sourcing ROS 2 environment in .bashrc..."
-    if ! grep -q "source /opt/ros/galactic/setup.bash" ~/.bashrc; then
-      echo "source /opt/ros/galactic/setup.bash" >> ~/.bashrc
+    print_info "Sourcing ROS 2 environment in user's .bashrc..."
+    if ! grep -q "source /opt/ros/galactic/setup.bash" /home/$FSAI_USER/.bashrc; then
+      echo "source /opt/ros/galactic/setup.bash" >> /home/$FSAI_USER/.bashrc
     fi
 
-    # --- NEW: SSH Key Check and Setup ---
-    print_info "Checking SSH key for GitHub..."
-    if [ ! -f ~/.ssh/id_ed25519 ]; then
-        print_info "No existing SSH key found. Generating a new one..."
-        ssh-keygen -t ed25519 -C "$GIT_EMAIL" -N "" -f ~/.ssh/id_ed25519
-    fi
-    
-    # Start agent and add key, hiding verbose output
-    eval "$(ssh-agent -s)" > /dev/null
-    ssh-add ~/.ssh/id_ed25519 > /dev/null
+    # --- SSH Key Check and Setup (run as the target user) ---
+    print_info "Checking SSH key for GitHub as user '$FSAI_USER'..."
+    su - ${FSAI_USER} -c "
+        if [ ! -f ~/.ssh/id_ed25519 ]; then
+            echo 'Generating new SSH key...'
+            ssh-keygen -t ed25519 -C '$GIT_EMAIL' -N '' -f ~/.ssh/id_ed25519
+        fi
+        
+        eval \$(ssh-agent -s) > /dev/null
+        ssh-add ~/.ssh/id_ed25519 > /dev/null
 
-    print_info "Testing SSH connection to GitHub..."
-    # Use '|| true' to prevent script exit on authentication failure (which is expected if key is not yet added)
-    AUTH_RESPONSE=$(ssh -o StrictHostKeyChecking=no -T git@github.com 2>&1 || true)
+        echo 'Testing SSH connection to GitHub...'
+        AUTH_RESPONSE=\$(ssh -o StrictHostKeyChecking=no -T git@github.com 2>&1 || true)
 
-    if [[ "$AUTH_RESPONSE" == *"successfully authenticated"* ]]; then
-        print_success "SSH key is already configured on GitHub."
-    else
-        print_warning "SSH key is not yet configured on GitHub."
-        print_action "Please add the following public SSH key to your GitHub account:"
-        echo -e "\n--- Your Public SSH Key ---\n$(cat ~/.ssh/id_ed25519.pub)\n--------------------------"
-        read -p "Press [Enter] to continue after adding the key to GitHub..."
-    fi
+        if [[ \"\$AUTH_RESPONSE\" == *\"successfully authenticated\"* ]]; then
+            echo -e \"\e[32m[SUCCESS] SSH key is already configured on GitHub.\e[0m\"
+        else
+            echo -e \"\e[33m[WARNING] SSH key is not yet configured on GitHub.\e[0m\"
+            echo -e \"\n\e[31m[ACTION REQUIRED] Please add the following public SSH key to your GitHub account:\e[0m\"
+            echo -e \"\n--- Your Public SSH Key ---\n\$(cat ~/.ssh/id_ed25519.pub)\n--------------------------\"
+            read -p \"Press [Enter] to continue after adding the key to GitHub...\"
+        fi
 
-    git config --global user.name "bristol-fsai"
-    git config --global user.email "bristol.fsai@gmail.com"
+        git config --global user.name '$GIT_USERNAME'
+        git config --global user.email '$GIT_EMAIL'
+    "
 
     print_info "Checking for core-sim repository..."
     cd "$WORKSPACE_DIR"
 
-    # Clone if the directory doesn't exist, otherwise pull the latest changes.
     if [ ! -d "core-sim" ]; then
-        print_info "Cloning core-sim repository for the first time..."
+        print_info "Cloning core-sim repository..."
         su - ${FSAI_USER} -c "git clone $CORE_SIM_REPO && cd core-sim && git switch dev"
     else
-        print_info "core-sim directory found. Pulling latest changes from the 'dev' branch..."
-        # Ensure correct ownership to prevent potential git permission issues
-        sudo chown -R ${FSAI_USER}:${FSAI_USER} core-sim
+        print_info "core-sim directory found. Pulling latest changes..."
+        chown -R ${FSAI_USER}:${FSAI_USER} core-sim
         su - ${FSAI_USER} -c "cd core-sim && git switch dev && git pull"
     fi
 
     EUFS_MASTER_PATH="$WORKSPACE_DIR/core-sim"
-    if ! grep -q "export EUFS_MASTER" ~/.bashrc; then
-      echo "export EUFS_MASTER=$EUFS_MASTER_PATH" >> ~/.bashrc
+    if ! grep -q "export EUFS_MASTER" /home/$FSAI_USER/.bashrc; then
+      echo "export EUFS_MASTER=$EUFS_MASTER_PATH" >> /home/$FSAI_USER/.bashrc
     fi
     export EUFS_MASTER=$EUFS_MASTER_PATH
 
     print_info "Installing additional ROS 2 dependencies..."
-    sudo apt-get install libgazebo11-dev ros-galactic-gazebo-ros-pkgs ros-galactic-joint-state-publisher ros-galactic-xacro ros-galactic-ackermann-msgs -y > /dev/null
-    sudo apt-get install ros-galactic-gazebo-plugins libyaml-cpp-dev ros-galactic-rqt ros-galactic-rqt-common-plugins ros-galactic-ament-package -y > /dev/null
+    apt-get install libgazebo11-dev ros-galactic-gazebo-ros-pkgs ros-galactic-joint-state-publisher ros-galactic-xacro ros-galactic-ackermann-msgs -y > /dev/null
+    apt-get install ros-galactic-gazebo-plugins libyaml-cpp-dev ros-galactic-rqt ros-galactic-rqt-common-plugins ros-galactic-ament-package -y > /dev/null
     print_success "ROS 2 Galactic and dependencies installed successfully."
 
     print_info "Installing colcon and rosdep..."
-    sudo apt-get install python3-pip -y > /dev/null
+    apt-get install python3-pip -y > /dev/null
     su - ${FSAI_USER} -c "pip3 install colcon-common-extensions -U"
-    su - ${FSAI_USER} -c "source ~/.bashrc"
-    sudo apt-get install python3-rosdep -y > /dev/null
+    apt-get install python3-rosdep -y > /dev/null
     
-    # Initialize rosdep, automatically removing the existing file to prevent errors on re-runs.
     print_info "Initializing rosdep..."
-    sudo rm -f /etc/ros/rosdep/sources.list.d/20-default.list
-    sudo rosdep init
-    
+    rm -f /etc/ros/rosdep/sources.list.d/20-default.list
+    rosdep init
     su - ${FSAI_USER} -c "rosdep update"
 
     print_info "Installing additional Python dependencies..."
-    cd "$WORKSPACE_DIR/core-sim"
-    su - ${FSAI_USER} -c "rosdep install --from-paths $EUFS_MASTER --ignore-src -r -y"
-    sudo pip install -r eufs_sim/perception/requirements.txt
+    su - ${FSAI_USER} -c "source /opt/ros/galactic/setup.bash && rosdep install --from-paths $EUFS_MASTER --ignore-src -r -y"
+    pip install -r $EUFS_MASTER/eufs_sim/perception/requirements.txt
     su - ${FSAI_USER} -c "pip install --upgrade numpy"
-    sudo apt-get install ros-galactic-vision-msgs -y > /dev/null
+    apt-get install ros-galactic-vision-msgs -y > /dev/null
     print_success "Python dependencies installed successfully."
 
-    print_info "Building and sourcing core-sim"
+    print_info "Building and sourcing core-sim (excluding ZED packages)..."
     su - ${FSAI_USER} -c "cd $WORKSPACE_DIR/core-sim && source /opt/ros/galactic/setup.bash && colcon build --symlink-install --cmake-args=-DCMAKE_BUILD_TYPE=Release --packages-ignore-regex='^(zed).*'"
-    su - ${FSAI_USER} -c "source install/setup.bash"
     print_success "Successfully built core-sim"
 
     # --- NVIDIA Driver Installation ---
     print_info "Installing NVIDIA Drivers..."
-    sudo apt-get install -y ubuntu-drivers-common > /dev/null
+    apt-get install -y ubuntu-drivers-common > /dev/null
     print_info "Recommended drivers for your system:"
     ubuntu-drivers devices
     print_action "The script will now install the recommended drivers using 'autoinstall'."
-    sudo ubuntu-drivers autoinstall > /dev/null
-
-    sudo prime-select nvidia
-    sudo modprobe nvidia
+    ubuntu-drivers autoinstall > /dev/null
+    prime-select nvidia
+    modprobe nvidia
 
     # --- Prepare for next stage ---
     echo "STAGE_2" > "$STATE_FILE"
     print_action "NVIDIA drivers are installed. A system reboot is required."
     print_info "After rebooting, please run this script again to continue."
     read -p "Press [Enter] to reboot or Ctrl+C to cancel and reboot later"
-    sudo reboot
+    reboot
 }
 
 # --- Stage 2: CUDA and ZED SDK Installation ---
 run_stage_2() {
     print_stage "STAGE 2: CUDA and ZED SDK Installation"
 
-    sudo prime-select nvidia
-    sudo modprobe nvidia
+    prime-select nvidia
+    modprobe nvidia
 
     print_info "Verifying NVIDIA driver installation..."
     if ! nvidia-smi; then
-        print_warning "nvidia-smi command failed. The driver may not have installed correctly. Please check and try again."
+        print_warning "nvidia-smi command failed. Driver may not be installed correctly."
         exit 1
     fi
     print_success "NVIDIA drivers are active."
 
-    # Reminder for dual-graphics users
-    if sudo prime-select query | grep -q "intel"; then
-        print_action "Your system is currently using Intel graphics. To use the NVIDIA GPU, run the following command and then re-run this script:"
-        print_warning "sudo prime-select nvidia"
+    if prime-select query | grep -q "intel"; then
+        print_action "Your system is using Intel graphics. To use NVIDIA, run 'sudo prime-select nvidia' and re-run this script."
         exit 0
     fi
 
     print_info "Installing NVIDIA CUDA Toolkit..."
     wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.1-1_all.deb
-    sudo dpkg -i cuda-keyring_1.1-1_all.deb
-    sudo apt-get update > /dev/null
-    sudo apt-get -y install cuda-toolkit > /dev/null
+    dpkg -i cuda-keyring_1.1-1_all.deb
+    apt-get update > /dev/null
+    apt-get -y install cuda-toolkit > /dev/null
     rm cuda-keyring_1.1-1_all.deb
 
-    print_info "Adding CUDA paths to .bashrc..."
-    if ! grep -q "cuda/bin" ~/.bashrc; then
-        echo 'export PATH=/usr/local/cuda/bin${PATH:+:${PATH}}' >> ~/.bashrc
+    print_info "Adding CUDA paths to user's .bashrc..."
+    BASHRC_PATH="/home/$FSAI_USER/.bashrc"
+    if ! grep -q "cuda/bin" $BASHRC_PATH; then
+        echo 'export PATH=/usr/local/cuda/bin${PATH:+:${PATH}}' >> $BASHRC_PATH
     fi
-    if ! grep -q "cuda/lib64" ~/.bashrc; then
-        echo 'export LD_LIBRARY_PATH=/usr/local/cuda/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}' >> ~/.bashrc
+    if ! grep -q "cuda/lib64" $BASHRC_PATH; then
+        echo 'export LD_LIBRARY_PATH=/usr/local/cuda/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}' >> $BASHRC_PATH
     fi
 
     print_info "Installing ZED SDK..."
     print_action "Please download the ZED SDK v5.0 for Ubuntu 20.04 from:"
     print_info "https://www.stereolabs.com/developers/release/"
-    print_action "Place the downloaded '.run' file in your '~/Downloads' directory."
+    print_action "Place the downloaded '.run' file in the '/home/$FSAI_USER/Downloads' directory."
 
-    ZED_INSTALLER_PATH=$(find ~/Downloads -name "ZED_SDK_Ubuntu20_cuda*.run" | head -n 1)
+    ZED_INSTALLER_PATH=$(find /home/$FSAI_USER/Downloads -name "ZED_SDK_Ubuntu20_cuda*.run" | head -n 1)
     while [ -z "$ZED_INSTALLER_PATH" ]; do
-        read -p "Press [Enter] once the file is in ~/Downloads..."
-        ZED_INSTALLER_PATH=$(find ~/Downloads -name "ZED_SDK_Ubuntu20_cuda*.run" | head -n 1)
+        read -p "Press [Enter] once the file is in /home/$FSAI_USER/Downloads..."
+        ZED_INSTALLER_PATH=$(find /home/$FSAI_USER/Downloads -name "ZED_SDK_Ubuntu20_cuda*.run" | head -n 1)
     done
 
     print_info "Found ZED installer: $ZED_INSTALLER_PATH"
-    print_info "Installing dependencies and running the installer in silent mode..."
-    sudo apt-get install -y zstd > /dev/null
+    print_info "Installing dependencies and running the installer..."
+    apt-get install -y zstd > /dev/null
     chmod +x "$ZED_INSTALLER_PATH"
     "$ZED_INSTALLER_PATH" -- silent
 
-    # --- Prepare for next stage ---
     echo "STAGE_3" > "$STATE_FILE"
     print_action "ZED SDK is installed. A final system reboot is required."
     print_info "After rebooting, please run this script one last time."
     read -p "Press [Enter] to reboot or Ctrl+C to cancel and reboot later"
-
-    sudo reboot
+    reboot
 }
 
 # --- Stage 3: Final Configuration and Build ---
 run_stage_3() {
     print_stage "STAGE 3: Final Configuration and Build"
 
-    # --- NEW: Clone launch repo and set up rc.local ---
     print_info "Cloning FSAI Launch repository to set up rc.local service..."
-    cd "$HOME"
-    # Clean up previous clone if it exists
-    rm -rf launch
-    git clone "$LAUNCH_REPO"
+    LAUNCH_CLONE_DIR="/home/$FSAI_USER/launch"
+    rm -rf "$LAUNCH_CLONE_DIR"
+    su - ${FSAI_USER} -c "git clone $LAUNCH_REPO $LAUNCH_CLONE_DIR"
+    
     print_info "Copying rc.local file to /etc/ and making it executable..."
-    sudo cp "$HOME/launch/rc.local" "/etc/rc.local"
-    sudo chmod +x /etc/rc.local
-    # Clean up the cloned repository
+    cp "$LAUNCH_CLONE_DIR/rc.local" "/etc/rc.local"
+    chmod +x /etc/rc.local
+    rm -rf "$LAUNCH_CLONE_DIR" # Clean up
     print_success "rc.local service file has been configured."
-    # --- End of new section ---
 
     print_action "Please plug in your ZED 2 camera to a USB 3.0 port."
-    print_info "You can test the installation by running the ZED Diagnostics tool:"
-    print_info "/usr/local/zed/tools/ZED_Diagnostic"
+    print_info "You can test the installation by running: /usr/local/zed/tools/ZED_Diagnostic"
     read -p "Press [Enter] to continue once you have tested the camera..."
 
     print_info "Installing final ROS dependencies..."
-    sudo apt-get install -y ros-galactic-backward-ros ros-galactic-diagnostic-updater ros-galactic-geographic-msgs ros-galactic-robot-localization > /dev/null
+    apt-get install -y ros-galactic-backward-ros ros-galactic-diagnostic-updater ros-galactic-geographic-msgs ros-galactic-robot-localization > /dev/null
 
     print_info "Updating and installing all workspace dependencies with rosdep..."
-    source /opt/ros/galactic/setup.bash
-    cd "$WORKSPACE_DIR"
-    rosdep install --from-paths src --ignore-src -r -y
+    su - ${FSAI_USER} -c "source /opt/ros/galactic/setup.bash && cd $WORKSPACE_DIR/core-sim && rosdep install --from-paths src --ignore-src -r -y"
 
     print_info "Building the complete workspace..."
     su - ${FSAI_USER} -c "cd $WORKSPACE_DIR/core-sim && source /opt/ros/galactic/setup.bash && colcon build --symlink-install --cmake-args=-DCMAKE_BUILD_TYPE=Release"
 
-    print_info "Sourcing the final workspace overlay in .bashrc..."
-    if ! grep -q "source $WORKSPACE_DIR/core-sim/install/setup.bash" ~/.bashrc; then
-      echo "source $WORKSPACE_DIR/core-sim/install/setup.bash" >> ~/.bashrc
+    print_info "Sourcing the final workspace overlay in user's .bashrc..."
+    BASHRC_PATH="/home/$FSAI_USER/.bashrc"
+    if ! grep -q "source $WORKSPACE_DIR/core-sim/install/setup.bash" $BASHRC_PATH; then
+      echo "source $WORKSPACE_DIR/core-sim/install/setup.bash" >> $BASHRC_PATH
     fi
 
-    print_info "Configuring git credentials..."
-    git config --global user.name "$GIT_USERNAME"
-    git config --global user.email "$GIT_EMAIL"
+    print_info "Configuring git credentials for user '$FSAI_USER'..."
+    su - ${FSAI_USER} -c "git config --global user.name '$GIT_USERNAME' && git config --global user.email '$GIT_EMAIL'"
 
     # --- Cleanup ---
     rm -f "$STATE_FILE"
     print_success "🎉 All stages complete! Your environment is ready. 🎉"
-    print_info "Open a NEW terminal to ensure all environment variables are loaded."
+    print_info "Open a NEW terminal as user '$FSAI_USER' to ensure all environment variables are loaded."
 }
 
 
 # ==============================================================================
 # SCRIPT EXECUTION LOGIC
 # ==============================================================================
+
+# Check for sudo privileges
+if [ "$EUID" -ne 0 ]; then
+  print_warning "This script must be run as root."
+  echo "Please run with sudo: sudo $0"
+  exit 1
+fi
+
+if [ -z "$FSAI_USER" ]; then
+    print_warning "Could not determine a non-root user in /home."
+    print_info "Please ensure a user account exists before running this script."
+    exit 1
+fi
+
 if [ ! -f "$STATE_FILE" ]; then
     run_stage_1
 elif [ "$(cat "$STATE_FILE")" = "STAGE_2" ]; then
