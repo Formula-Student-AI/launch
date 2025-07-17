@@ -260,6 +260,8 @@ elif [ "$(cat "$STATE_FILE")" = "STAGE_2" ]; then
 elif [ "$(cat "$STATE_FILE")" = "STAGE_3" ]; then
     run_stage_3
 else
-    print_warning "Invalid state found in $STATE_FILE. Please remove it and start over."
+    print_warning "Invalid state found in $STATE_FILE. Removing state file."
+    rm -f "$STATE_FILE"
+    print_info "Please re-run the script to start from the beginning."
     exit 1
 fi
