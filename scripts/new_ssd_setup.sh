@@ -10,7 +10,7 @@
 # Exit immediately if a command exits with a non-zero status.
 set -e
 
-# --- Configuration ---
+FSAI_USER=$(ls /home | grep -v root | grep -v bristol-fsai | head -n 1)
 CORE_SIM_REPO="git@github.com:Formula-Student-AI/core-sim.git"
 LAUNCH_REPO="git@github.com:Formula-Student-AI/launch.git"
 GIT_EMAIL="bristol.fsai@gmail.com"
