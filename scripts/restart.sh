@@ -59,24 +59,7 @@ start_ros_process() {
 
 # Helper function to start the CAN logger.
 start_can_logger() {
-    echo "🚀  Starting 'CAN Logger'..."
-    echo "   - Setting up can0 link..."
-    sudo ip link set up can0 type can bitrate 500000
-    
-    local log_file="${LOG_DIR}/candump_log_$(date +%Y%m%d_%H%M%S).log"
-    echo "   - Starting candump. Logging to: $log_file"
-    
-    # Use stdbuf to ensure output is written immediately.
-    # Run in the background (&) so the script can continue.
-    stdbuf -o0 candump "can0" > "$log_file" &
-
-    sleep 1 # Give it a moment to start.
-
-    if pgrep -f "$CAN_CMD" > /dev/null; then
-        echo "✅  Success! 'CAN Logger' is running."
-    else
-        echo "❌  Error! Failed to start 'CAN Logger'."
-    fi
+    echo "WIP - manually restart candump for now"
 }
 
 
@@ -120,7 +103,7 @@ echo
 echo "--- Stopping all processes first ---"
 kill_process "$EUFS_CMD" "EUFS"
 kill_process "$ZED_CMD" "ZED Camera"
-kill_process "$CAN_CMD" "CAN Logger"
+# kill_process "$CAN_CMD" "CAN Logger"
 echo "--------------------------------"
 
 
