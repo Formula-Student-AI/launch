@@ -18,4 +18,4 @@ If you ever want to disable, the scripts, rename the `root_launch` to `root_laun
 Just pulls from git and rebuilds the package.
 
 ### new ssd setup
-WIP
+Run the script and follow instructions. It's mostly automatic - you will be prompted to add the SSH key to GitHub and to download and test the latest Zed SDK. It will also prompt for reboots

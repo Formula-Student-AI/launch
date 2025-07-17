@@ -102,6 +102,7 @@ run_stage_1() {
     echo "STAGE_2" > "$STATE_FILE"
     print_action "NVIDIA drivers are installed. A system reboot is required."
     print_info "After rebooting, please run this script again to continue."
+    read -p "Press [Enter] to reboot or Ctrl+C to cancel and reboot later"
     sudo reboot
 }
 
@@ -159,6 +160,8 @@ run_stage_2() {
     echo "STAGE_3" > "$STATE_FILE"
     print_action "ZED SDK is installed. A final system reboot is required."
     print_info "After rebooting, please run this script one last time."
+    read -p "Press [Enter] to reboot or Ctrl+C to cancel and reboot later"
+
     sudo reboot
 }
 
