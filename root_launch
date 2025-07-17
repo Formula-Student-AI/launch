@@ -1,0 +1,29 @@
+#!/bin/bash
+set -e
+
+# Enable NVIDIA driver
+echo "----------------------"
+echo "Enabling NVIDIA drivers"
+sudo prime-select nvidia
+sudo modprobe nvidia
+echo "Enabled NVIDIA drivers"
+
+# Enable CAN modules
+echo "Enabling can modules"
+sudo modprobe can_dev
+echo "Enabled can dev"
+sudo modprobe can
+echo "Enabled can"
+sudo modprobe can_raw
+echo "Enabled can raw"
+sudo modprobe vcan
+echo "Enabled vcan"
+
+# Setup CAN link
+echo "Setting up can link"
+sudo ip link set up can0 type can bitrate 500000 &
+
+# Launch user commands
+echo "Launching user commands"
+su - bristol-fsai -c /home/bristol-fsai/launch/user_launch
+

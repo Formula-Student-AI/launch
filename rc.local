@@ -1,0 +1,5 @@
+#!/bin/bash
+
+/home/bristol-fsai/auto-launch-core-sim.sh >> "/home/bristol-fsai/logs/launch_$(date +%Y-%m-%d_%H-%M-%S).log" 2>&1
+
+exit 0
