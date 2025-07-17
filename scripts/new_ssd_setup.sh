@@ -93,10 +93,8 @@ run_stage_1() {
     print_action "The script will now install the recommended drivers using 'autoinstall'."
     sudo ubuntu-drivers autoinstall
 
-    print_warning "If your system has both Intel and NVIDIA graphics (especially a newer GPU), it may crash on reboot."
-    print_action "Selecting Intel graphics before reboot to prevent a crash."
-    print_warning "After rebooting, you will be reminded to switch back."
-    sudo prime-select intel
+    sudo prime-select nvidia
+    sudo modprobe nvidia
 
     # --- Prepare for next stage ---
     echo "STAGE_2" > "$STATE_FILE"
@@ -109,6 +107,9 @@ run_stage_1() {
 # --- Stage 2: CUDA and ZED SDK Installation ---
 run_stage_2() {
     print_stage "STAGE 2: CUDA and ZED SDK Installation"
+
+    sudo prime-select nvidia
+    sudo modprobe nvidia
 
     print_info "Verifying NVIDIA driver installation..."
     if ! nvidia-smi; then
