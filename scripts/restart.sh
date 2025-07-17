@@ -4,6 +4,7 @@
 # Define the unique command patterns for each process.
 EUFS_CMD="ros2 launch eufs_launcher hardware.launch.py"
 ZED_CMD="ros2 launch zed_wrapper zed_camera.launch.py camera_model:=zed2"
+CAN_CMD="candump can0" # Command pattern for the CAN logger
 
 # Define the workspace and log directory.
 WORKSPACE_DIR="/home/bristol-fsai/core-sim"
@@ -34,8 +35,8 @@ kill_process() {
   fi
 }
 
-# Helper function to start a process and verify its launch.
-start_process() {
+# Helper function to start a ROS process and verify its launch.
+start_ros_process() {
   local command="$1"
   local name="$2"
   local log_base_name="$3"
@@ -56,9 +57,31 @@ start_process() {
   fi
 }
 
+# Helper function to start the CAN logger.
+start_can_logger() {
+    echo "🚀  Starting 'CAN Logger'..."
+    echo "   - Setting up can0 link..."
+    sudo ip link set up can0 type can bitrate 500000
+    
+    local log_file="${LOG_DIR}/candump_log_$(date +%Y%m%d_%H%M%S).log"
+    echo "   - Starting candump. Logging to: $log_file"
+    
+    # Use stdbuf to ensure output is written immediately.
+    # Run in the background (&) so the script can continue.
+    stdbuf -o0 candump "can0" > "$log_file" &
+
+    sleep 1 # Give it a moment to start.
+
+    if pgrep -f "$CAN_CMD" > /dev/null; then
+        echo "✅  Success! 'CAN Logger' is running."
+    else
+        echo "❌  Error! Failed to start 'CAN Logger'."
+    fi
+}
+
 
 # --- Main Execution ---
-echo "🔄  Restarting all ROS nodes..."
+echo "🔄  Restarting all nodes and loggers..."
 
 # --- 1. ENVIRONMENT AND CODE SETUP ---
 echo
@@ -94,17 +117,19 @@ mkdir -p "$LOG_DIR"
 
 # --- 2. TERMINATION PHASE ---
 echo
-echo "--- Stopping all nodes first ---"
+echo "--- Stopping all processes first ---"
 kill_process "$EUFS_CMD" "EUFS"
 kill_process "$ZED_CMD" "ZED Camera"
+kill_process "$CAN_CMD" "CAN Logger"
 echo "--------------------------------"
 
 
 # --- 3. LAUNCH PHASE ---
 echo
-echo "--- Starting all nodes now ---"
-start_process "$EUFS_CMD" "EUFS" "eufs"
-start_process "$ZED_CMD" "ZED Camera" "zed"
+echo "--- Starting all processes now ---"
+start_ros_process "$EUFS_CMD" "EUFS" "eufs"
+start_ros_process "$ZED_CMD" "ZED Camera" "zed"
+start_can_logger # Start the CAN logger
 echo "------------------------------"
 echo "✅  Restart sequence complete."
 
