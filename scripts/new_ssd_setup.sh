@@ -31,26 +31,26 @@ run_stage_1() {
 
     # --- Initial Setup ---
     print_info "Updating system packages..."
-    sudo apt update && sudo apt upgrade -y
+    sudo apt update > /dev/null && sudo apt upgrade -y > /dev/null
 
     print_info "Setting locale to en_US.UTF-8..."
-    sudo apt install -y locales
+    sudo apt install -y locales > /dev/null
     sudo locale-gen en_US en_US.UTF-8
     sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
     export LANG=en_US.UTF-8
 
     print_info "Downloading SSH"
-    sudo apt install -y openssh-server
+    sudo apt install -y openssh-server > /dev/null
     sudo ufw allow ssh
     sudo systemctl disable ssh # Manually start SSH when needed
 
     print_info "Adding required repositories and installing ROS 2 Galactic..."
-    sudo apt install -y software-properties-common curl
+    sudo apt install -y software-properties-common curl > /dev/null
     sudo add-apt-repository universe
     sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
-    sudo apt update
-    sudo apt install -y ros-galactic-desktop ros-dev-tools
+    sudo apt update > /dev/null
+    sudo apt install -y ros-galactic-desktop ros-dev-tools > /dev/null
 
     print_info "Sourcing ROS 2 environment in .bashrc..."
     if ! grep -q "source /opt/ros/galactic/setup.bash" ~/.bashrc; then
@@ -95,16 +95,21 @@ run_stage_1() {
     export EUFS_MASTER=$EUFS_MASTER_PATH
 
     print_info "Installing additional ROS 2 dependencies..."
-    sudo apt install libgazebo11-dev ros-galactic-gazebo-ros-pkgs ros-galactic-joint-state-publisher ros-galactic-xacro ros-galactic-ackermann-msgs -y
-    sudo apt install ros-galactic-gazebo-plugins libyaml-cpp-dev ros-galactic-rqt ros-galactic-rqt-common-plugins ros-galactic-ament-package -y
+    sudo apt install libgazebo11-dev ros-galactic-gazebo-ros-pkgs ros-galactic-joint-state-publisher ros-galactic-xacro ros-galactic-ackermann-msgs -y > /dev/null
+    sudo apt install ros-galactic-gazebo-plugins libyaml-cpp-dev ros-galactic-rqt ros-galactic-rqt-common-plugins ros-galactic-ament-package -y > /dev/null
     print_success "ROS 2 Galactic and dependencies installed successfully."
 
     print_info "Installing colcon and rosdep..."
-    sudo apt install python3-pip -y
+    sudo apt install python3-pip -y > /dev/null
     su - ${FSAI_USER} -c "pip3 install colcon-common-extensions -U"
     su - ${FSAI_USER} -c "source ~/.bashrc"
-    sudo apt install python3-rosdep -y
+    sudo apt install python3-rosdep -y > /dev/null
+    
+    # Initialize rosdep, automatically removing the existing file to prevent errors on re-runs.
+    print_info "Initializing rosdep..."
+    sudo rm -f /etc/ros/rosdep/sources.list.d/20-default.list
     sudo rosdep init
+    
     su - ${FSAI_USER} -c "rosdep update"
 
     print_info "Installing additional Python dependencies..."
@@ -113,7 +118,7 @@ run_stage_1() {
     su - ${FSAI_USER} -c "rosdep install --from-paths $EUFS_MASTER --ignore-src -r -y"
     sudo pip install -r eufs_sim/perception/requirements.txt
     su - ${FSAI_USER} -c "pip install --upgrade numpy"
-    sudo apt install ros-galactic-vision-msgs -y
+    sudo apt install ros-galactic-vision-msgs -y > /dev/null
     print_success "Python dependencies installed successfully."
 
     print_info "Building and sourcing core-sim"
@@ -123,11 +128,11 @@ run_stage_1() {
 
     # --- NVIDIA Driver Installation ---
     print_info "Installing NVIDIA Drivers..."
-    sudo apt install -y ubuntu-drivers-common
+    sudo apt install -y ubuntu-drivers-common > /dev/null
     print_info "Recommended drivers for your system:"
     ubuntu-drivers devices
     print_action "The script will now install the recommended drivers using 'autoinstall'."
-    sudo ubuntu-drivers autoinstall
+    sudo ubuntu-drivers autoinstall > /dev/null
 
     sudo prime-select nvidia
     sudo modprobe nvidia
@@ -164,8 +169,8 @@ run_stage_2() {
     print_info "Installing NVIDIA CUDA Toolkit..."
     wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.1-1_all.deb
     sudo dpkg -i cuda-keyring_1.1-1_all.deb
-    sudo apt-get update
-    sudo apt-get -y install cuda-toolkit
+    sudo apt-get update > /dev/null
+    sudo apt-get -y install cuda-toolkit > /dev/null
     rm cuda-keyring_1.1-1_all.deb
 
     print_info "Adding CUDA paths to .bashrc..."
@@ -189,7 +194,7 @@ run_stage_2() {
 
     print_info "Found ZED installer: $ZED_INSTALLER_PATH"
     print_info "Installing dependencies and running the installer in silent mode..."
-    sudo apt install -y zstd
+    sudo apt install -y zstd > /dev/null
     chmod +x "$ZED_INSTALLER_PATH"
     "$ZED_INSTALLER_PATH" -- silent
 
@@ -225,7 +230,7 @@ run_stage_3() {
     read -p "Press [Enter] to continue once you have tested the camera..."
 
     print_info "Installing final ROS dependencies..."
-    sudo apt install -y ros-galactic-backward-ros ros-galactic-diagnostic-updater ros-galactic-geographic-msgs ros-galactic-robot-localization
+    sudo apt install -y ros-galactic-backward-ros ros-galactic-diagnostic-updater ros-galactic-geographic-msgs ros-galactic-robot-localization > /dev/null
 
     print_info "Updating and installing all workspace dependencies with rosdep..."
     source /opt/ros/galactic/setup.bash
