@@ -12,6 +12,17 @@ LOG_DIR="/home/bristol-fsai/logs"
 # --- End Configuration ---
 
 
+# --- Argument Parsing ---
+# Default to not rebuilding.
+REBUILD=false
+# Check if the first argument is '-r'.
+if [[ "$1" == "-r" ]]; then
+  REBUILD=true
+  echo "ℹ️  Rebuild flag '-r' detected. Workspace will be updated and rebuilt."
+fi
+# --- End Argument Parsing ---
+
+
 # Helper function to terminate a process by its command pattern.
 kill_process() {
   local pattern="$1"
@@ -77,16 +88,22 @@ echo "--------------------------------"
 # Navigate to the workspace directory.
 cd "$WORKSPACE_DIR" || { echo "❌ Error: Could not navigate to $WORKSPACE_DIR. Exiting."; exit 1; }
 
-echo
-echo "--- Updating and Building Workspace ---"
-echo "⬇️  Pulling latest changes from git..."
-git pull
-echo "✅  Git pull complete."
-echo
+# Conditionally update and build the workspace if -r flag was passed.
+if [ "$REBUILD" = true ]; then
+  echo
+  echo "--- Updating and Building Workspace ---"
+  echo "⬇️  Pulling latest changes from git..."
+  git pull
+  echo "✅  Git pull complete."
+  echo
 
-echo "🛠️  Building workspace with colcon..."
-colcon build --symlink-install --cmake-args=-DCMAKE_BUILD_TYPE=Release
-echo "✅  Colcon build complete."
+  echo "🛠️  Building workspace with colcon..."
+  colcon build --symlink-install --cmake-args=-DCMAKE_BUILD_TYPE=Release
+  echo "✅  Colcon build complete."
+else
+  echo
+  echo "--- Skipping Rebuild (use -r to force) ---"
+fi
 echo
 
 echo "📦  Sourcing the local workspace..."
