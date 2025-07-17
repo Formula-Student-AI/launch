@@ -9,6 +9,7 @@ sudo chmod +x /home/bristol-fsai/launch/can_launch.sh
 sudo chmod +x /home/bristol-fsai/launch/user_launch.sh
 sudo chmod +x /home/bristol-fsai/launch/ros_script_1.sh
 sudo chmod +x /home/bristol-fsai/launch/ros_script_1.sh
+sudo chmod +x /home/bristol-fsai/launch/scripts/restart.sh
 
 # Enable NVIDIA driver
 echo "Enabling NVIDIA drivers"
