@@ -16,7 +16,7 @@ LAUNCH_REPO="git@github.com:Formula-Student-AI/launch.git"
 GIT_EMAIL="bristol.fsai@gmail.com"
 GIT_USERNAME="bristol-fsai"
 WORKSPACE_DIR="/home/$FSAI_USER"
-STATE_FILE="/root/.ssd_setup" # Changed to /root to persist across reboots when run with sudo
+STATE_FILE="/root/.ssd_setup"
 
 # --- Helper Functions ---
 print_info() { echo -e "\e[34m[INFO] $1\e[0m"; }
@@ -263,7 +263,7 @@ fi
 
 if [ -z "$FSAI_USER" ]; then
     print_warning "Could not determine a non-root user in /home."
-    print_info "Please ensure a user account exists before running this script."
+    print_info "Please ensure a user account exists before running this script. If you have a user account, please set the FSAI_USER variable manually at the top of this script."
     exit 1
 fi
 
