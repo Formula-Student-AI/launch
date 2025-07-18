@@ -136,8 +136,7 @@ run_stage_1() {
     ubuntu-drivers devices
     print_action "The script will now install the recommended drivers using 'autoinstall'."
     ubuntu-drivers autoinstall > /dev/null
-    prime-select nvidia
-    modprobe nvidia
+    prime-select intel
 
     # --- Prepare for next stage ---
     echo "STAGE_2" > "$STATE_FILE"
