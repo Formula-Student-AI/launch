@@ -132,6 +132,7 @@ run_stage_1() {
 
     # --- NVIDIA Driver Installation ---
     print_info "Installing NVIDIA Drivers..."
+    apt-get update > /dev/null && apt-get upgrade -y > /dev/null
     apt-get install -y ubuntu-drivers-common > /dev/null
     print_info "Recommended drivers for your system:"
     ubuntu-drivers devices
