@@ -197,8 +197,11 @@ run_stage_1() {
 # --- Stage 2: CUDA and ZED SDK Installation ---
 run_stage_2() {
     print_stage "STAGE 2: CUDA and ZED SDK Installation"
+
+    print_alert "Don't terminate this while selecting NVIDIA"
     prime-select nvidia
     modprobe nvidia
+    print_success "Successfully selected NVIDIA"
 
     print_info "Verifying NVIDIA driver installation..."
     if ! nvidia-smi; then
