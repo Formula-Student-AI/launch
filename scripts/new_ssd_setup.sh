@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==============================================================================
-# EUFS Full Setup Script with NVIDIA, CUDA, and ZED Support
+# Setting up University of Bristol FSAI device
 # ==============================================================================
 
 set -e
@@ -40,6 +40,14 @@ run_stage_1() {
     apt-get install -y openssh-server > /dev/null
     ufw allow ssh
     systemctl disable ssh # Manually start SSH when needed
+
+    print_info "Installing Visual Studio Code..."
+    apt-get install -y wget gpg apt-transport-https > /dev/null
+    wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /usr/share/keyrings/packages.microsoft.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" | tee /etc/apt/sources.list.d/vscode.list > /dev/null
+    apt-get update > /dev/null
+    apt-get install -y code > /dev/null
+    print_success "Visual Studio Code installed successfully."
 
     print_info "Adding required repositories and installing ROS 2 Galactic..."
     apt-get install -y software-properties-common curl > /dev/null
@@ -267,7 +275,7 @@ run_stage_3() {
 
     # --- Cleanup ---
     rm -f "$STATE_FILE"
-    print_success "🎉 All stages complete! Your environment is ready. 🎉"
+    print_success "All stages complete! Your environment is ready. 🎉"
     print_info "Open a NEW terminal as user '$FSAI_USER' to ensure all environment variables are loaded."
 }
 
