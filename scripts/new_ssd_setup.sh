@@ -22,6 +22,7 @@ STATE_FILE="/root/.ssd_setup"
 print_info() { echo -e "\e[34m[INFO] $1\e[0m"; }
 print_success() { echo -e "\e[32m[SUCCESS] $1\e[0m"; }
 print_warning() { echo -e "\e[33m[WARNING] $1\e[0m"; }
+print_alert() { echo -e "\e[31m[ALERT] $1\e[0m"; }
 print_action() { echo -e "\n\e[31m[ACTION REQUIRED] $1\e[0m"; }
 print_stage() { echo -e "\e[1;34m\n================================\n$1\n================================\e[0m\n"; }
 
@@ -134,7 +135,7 @@ run_stage_1() {
     apt-get install -y ubuntu-drivers-common > /dev/null
     print_info "Recommended drivers for your system:"
     ubuntu-drivers devices
-    print_action "The script will now install the recommended drivers using 'autoinstall'."
+    print_alert "The script will now install the recommended drivers using 'autoinstall'."
     ubuntu-drivers autoinstall > /dev/null
     prime-select intel
 
