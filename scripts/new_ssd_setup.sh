@@ -197,7 +197,6 @@ run_stage_1() {
 # --- Stage 2: CUDA and ZED SDK Installation ---
 run_stage_2() {
     print_stage "STAGE 2: CUDA and ZED SDK Installation"
-
     prime-select nvidia
     modprobe nvidia
 
@@ -213,15 +212,22 @@ run_stage_2() {
         exit 0
     fi
 
-    print_info "Installing NVIDIA CUDA Toolkit..."
-    wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-ubuntu2004.pin
-    mv cuda-ubuntu2004.pin /etc/apt/preferences.d/cuda-repository-pin-600
-    wget https://developer.download.nvidia.com/compute/cuda/12.9.1/local_installers/cuda-repo-ubuntu2004-12-9-local_12.9.1-575.57.08-1_amd64.deb
-    dpkg -i cuda-repo-ubuntu2004-12-9-local_12.9.1-575.57.08-1_amd64.deb
-    cp /var/cuda-repo-ubuntu2004-12-9-local/cuda-*-keyring.gpg /usr/share/keyrings/
-    apt-get update > /dev/null
-    apt-get -y install cuda-toolkit-12-9 > /dev/null
-    print_success "CUDA Toolkit installed successfully."
+    # --- Check for existing CUDA installation ---
+    if command -v nvcc &> /dev/null; then
+        print_success "CUDA Toolkit is already installed. Skipping installation."
+        print_info "Detected version:"
+        nvcc --version
+    else
+        print_info "CUDA Toolkit not found. Installing NVIDIA CUDA Toolkit..."
+        wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-ubuntu2004.pin
+        mv cuda-ubuntu2004.pin /etc/apt/preferences.d/cuda-repository-pin-600
+        wget https://developer.download.nvidia.com/compute/cuda/12.9.1/local_installers/cuda-repo-ubuntu2004-12-9-local_12.9.1-575.57.08-1_amd64.deb
+        dpkg -i cuda-repo-ubuntu2004-12-9-local_12.9.1-575.57.08-1_amd64.deb
+        cp /var/cuda-repo-ubuntu2004-12-9-local/cuda-*-keyring.gpg /usr/share/keyrings/
+        apt-get update > /dev/null
+        apt-get -y install cuda-toolkit-12-9 > /dev/null
+        print_success "CUDA Toolkit installed successfully."
+    fi
 
     print_info "Installing ZED SDK..."
     print_action "Please download the ZED SDK v5.0 for Ubuntu 20.04 from:"
