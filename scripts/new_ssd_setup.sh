@@ -232,18 +232,17 @@ run_stage_2() {
         print_success "CUDA Toolkit installed successfully."
     fi
 
-    print_info "Installing ZED SDK..."
-    print_action "Please download the ZED SDK v5.0 for Ubuntu 20.04 from:"
-    print_info "https://www.stereolabs.com/developers/release/"
-    print_action "Place the downloaded '.run' file in the '/home/$FSAI_USER/Downloads' directory."
+    # --- Automated ZED SDK Download and Installation ---
+    print_info "Downloading ZED SDK v5.0 for CUDA..."
+    wget -c "https://download.stereolabs.com/zedsdk/5.0/cu12/ubuntu20" -P "/home/$FSAI_USER/Downloads/"
+    ZED_INSTALLER_PATH="/home/$FSAI_USER/Downloads/ubuntu20"
+    
+    if [ -z "$ZED_INSTALLER_PATH" ]; then
+        print_warning "ZED SDK installer download failed or not found."
+        exit 1
+    fi
 
-    ZED_INSTALLER_PATH=$(find /home/$FSAI_USER/Downloads -name "ZED_SDK_Ubuntu20_cuda*.run" | head -n 1)
-    while [ -z "$ZED_INSTALLER_PATH" ]; do
-        read -p "Press [Enter] once the file is in /home/$FSAI_USER/Downloads..."
-        ZED_INSTALLER_PATH=$(find /home/$FSAI_USER/Downloads -name "ZED_SDK_Ubuntu20_cuda*.run" | head -n 1)
-    done
-
-    print_info "Found ZED installer: $ZED_INSTALLER_PATH"
+    print_success "Found ZED installer: $ZED_INSTALLER_PATH"
     print_info "Installing dependencies and running the installer..."
     apt-get install -y zstd > /dev/null
     chmod +x "$ZED_INSTALLER_PATH"
