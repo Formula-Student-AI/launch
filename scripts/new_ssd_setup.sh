@@ -3,11 +3,7 @@
 # ==============================================================================
 # EUFS Full Setup Script with NVIDIA, CUDA, and ZED Support
 # ==============================================================================
-# This is a multi-stage script. It will prompt you to reboot and then
-# you must re-run it to continue the installation.
-# ==============================================================================
 
-# Exit immediately if a command exits with a non-zero status.
 set -e
 
 FSAI_USER=$(ls /home | grep -v root | head -n 1)
@@ -28,7 +24,7 @@ print_stage() { echo -e "\e[1;34m\n================================\n$1\n=======
 
 # --- Stage 1: Initial System and ROS Setup ---
 run_stage_1() {
-    print_stage "STAGE 1: System, ROS 2, and NVIDIA Driver Installation"
+    print_stage "STAGE 1: System, ROS 2, and Optional NVIDIA Setup"
 
     # --- Initial Setup ---
     print_info "Updating system packages..."
@@ -104,6 +100,16 @@ run_stage_1() {
     fi
     export EUFS_MASTER=$EUFS_MASTER_PATH
 
+    print_info "Cloning FSAI Launch repository to set up rc.local service..."
+    LAUNCH_CLONE_DIR="/home/$FSAI_USER/launch"
+    rm -rf "$LAUNCH_CLONE_DIR"
+    su - ${FSAI_USER} -c "git clone $LAUNCH_REPO $LAUNCH_CLONE_DIR"
+    
+    print_info "Copying rc.local file to /etc/ and making it executable..."
+    cp "$LAUNCH_CLONE_DIR/rc.local" "/etc/rc.local"
+    chmod +x /etc/rc.local
+    print_success "rc.local service file has been configured."
+
     print_info "Installing additional ROS 2 dependencies..."
     apt-get install libgazebo11-dev ros-galactic-gazebo-ros-pkgs ros-galactic-joint-state-publisher ros-galactic-xacro ros-galactic-ackermann-msgs -y > /dev/null
     apt-get install ros-galactic-gazebo-plugins libyaml-cpp-dev ros-galactic-rqt ros-galactic-rqt-common-plugins ros-galactic-ament-package -y > /dev/null
@@ -130,22 +136,54 @@ run_stage_1() {
     su - ${FSAI_USER} -c "cd $WORKSPACE_DIR/core-sim && source /opt/ros/galactic/setup.bash && colcon build --symlink-install --cmake-args=-DCMAKE_BUILD_TYPE=Release --packages-ignore-regex='^(zed).*'"
     print_success "Successfully built core-sim"
 
-    # --- NVIDIA Driver Installation ---
-    print_info "Installing NVIDIA Drivers..."
-    apt-get update > /dev/null && apt-get upgrade -y > /dev/null
-    apt-get install -y ubuntu-drivers-common > /dev/null
-    print_info "Recommended drivers for your system:"
-    ubuntu-drivers devices
-    print_alert "The script will now install the recommended drivers using 'autoinstall'."
-    ubuntu-drivers autoinstall > /dev/null
-    prime-select intel
+    # --- NVIDIA Driver Installation Check ---
+    print_info "Checking for a supported NVIDIA GPU..."
+    if lspci | grep -i -q nvidia; then
+        print_success "NVIDIA GPU detected. Proceeding with full driver, CUDA, and ZED installation."
+        
+        # --- NVIDIA Driver Installation ---
+        print_info "Purging any existing NVIDIA and CUDA installations for a clean setup..."
+        apt-get purge --autoremove nvidia* -y > /dev/null
+        rm -f /etc/apt/sources.list.d/cuda*
+        apt-get autoremove -y > /dev/null && apt-get autoclean -y > /dev/null
+        rm -rf /usr/local/cuda*
+        print_success "Old NVIDIA/CUDA packages removed."
 
-    # --- Prepare for next stage ---
-    echo "STAGE_2" > "$STATE_FILE"
-    print_action "NVIDIA drivers are installed. A system reboot is required."
-    print_info "After rebooting, please run this script again to continue."
-    read -p "Press [Enter] to reboot or Ctrl+C to cancel and reboot later"
-    reboot
+        print_info "Fixing any broken package dependencies..."
+        apt-get --fix-broken install -y > /dev/null
+
+        print_info "Installing NVIDIA Drivers..."
+        apt-get update > /dev/null
+        apt-get install -y ubuntu-drivers-common > /dev/null
+        print_info "Recommended drivers for your system:"
+        ubuntu-drivers devices
+        print_alert "The script will now install the recommended drivers using 'autoinstall'."
+        ubuntu-drivers autoinstall > /dev/null
+        prime-select intel
+
+        # --- Prepare for next stage ---
+        echo "STAGE_2" > "$STATE_FILE"
+        print_action "NVIDIA drivers are installed. A system reboot is required."
+        print_info "After rebooting, please run this script again to continue."
+        read -p "Press [Enter] to reboot or Ctrl+C to cancel and reboot later"
+        reboot
+    else
+        # --- No NVIDIA GPU Found ---
+        print_alert "No NVIDIA GPU detected. Skipping NVIDIA, CUDA, and ZED SDK installation."
+        print_info "Setup will complete for a non-GPU configuration."
+        
+        print_info "Sourcing the workspace overlay in user's .bashrc..."
+        BASHRC_PATH="/home/$FSAI_USER/.bashrc"
+        if ! grep -q "source $WORKSPACE_DIR/core-sim/install/setup.bash" $BASHRC_PATH; then
+          echo "source $WORKSPACE_DIR/core-sim/install/setup.bash" >> $BASHRC_PATH
+        fi
+
+        # --- Cleanup ---
+        rm -f "$STATE_FILE"
+        print_success "🎉 All stages complete for non-GPU setup! Your environment is ready. 🎉"
+        print_info "Open a NEW terminal as user '$FSAI_USER' to ensure all environment variables are loaded."
+        exit 0 # Exit successfully, as no further stages are needed.
+    fi
 }
 
 # --- Stage 2: CUDA and ZED SDK Installation ---
@@ -210,17 +248,6 @@ run_stage_2() {
 # --- Stage 3: Final Configuration and Build ---
 run_stage_3() {
     print_stage "STAGE 3: Final Configuration and Build"
-
-    print_info "Cloning FSAI Launch repository to set up rc.local service..."
-    LAUNCH_CLONE_DIR="/home/$FSAI_USER/launch"
-    rm -rf "$LAUNCH_CLONE_DIR"
-    su - ${FSAI_USER} -c "git clone $LAUNCH_REPO $LAUNCH_CLONE_DIR"
-    
-    print_info "Copying rc.local file to /etc/ and making it executable..."
-    cp "$LAUNCH_CLONE_DIR/rc.local" "/etc/rc.local"
-    chmod +x /etc/rc.local
-    rm -rf "$LAUNCH_CLONE_DIR" # Clean up
-    print_success "rc.local service file has been configured."
 
     print_action "Please plug in your ZED 2 camera to a USB 3.0 port."
     print_info "You can test the installation by running: /usr/local/zed/tools/ZED_Diagnostic"
