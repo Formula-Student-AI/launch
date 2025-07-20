@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Output CSV file
-LOGFILE="/home/bristol-fsai/logs/io_logs.csv"
+LOGFILE="/home/bristol-fsai/logs/io_logs_$(date +%Y-%m-%d_%H-%M-%S).csv"
 
 # Interval in seconds between samples
 INTERVAL=5
