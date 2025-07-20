@@ -13,14 +13,36 @@ print_alert() { echo -e "\e[31m[ALERT] $1\e[0m"; }
 print_action() { echo -e "\n\e[31m[ACTION REQUIRED] $1\e[0m"; }
 print_stage() { echo -e "\e[1;34m\n================================\n$1\n================================\e[0m"; }
 
+# --- Check for Internet Connectivity ---
+function check_internet_connection() {
+    print_info "Checking for internet connection..."
+    if ping -c 1 google.com &>/dev/null; then
+        print_success "Internet connection detected. Pulling git changes"
+        return 0
+    else
+        print_warning "No internet connection detected. Skipping git pull."
+        return 1
+    fi
+}
+
 # --- Core Functions ---
+
+function colcon_build() {
+    print_stage "STAGE 1: Setting up Directories & Permissions"
+    print_info "Colcon building repo"
+
+    cd "${WORKSPACE_DIR}/core-sim"
+    source install/setup.bash
+    source /opt/ros/galactic/setup.bash
+    colcon build --symlink-install --cmake-args=-DCMAKE_BUILD_TYPE=Release
+
+    print_success "Successfully rebuilt"
+}
 
 ##
 # @brief Sets up necessary directories and file permissions.
 ##
-function setup_directories_and_permissions() {
-    print_stage "STAGE 1: Setting up Directories & Permissions"
-    
+function setup_directories_and_permissions() {    
     print_info "Creating log directory: ${WORKSPACE_DIR}/logs"
     mkdir -p "${WORKSPACE_DIR}/logs"
     
@@ -113,7 +135,17 @@ EOF
 ##
 function main() {
     print_stage "🚀 Starting FSAI System Launch for user '${FSAI_USER}'"
-    
+
+    # --- Check for Internet Connection and Git Pull ---
+    check_internet_connection
+    if [ $? -eq 0 ]; then
+        print_info "Pulling latest changes from git..."
+        cd ${WORKSPACE_DIR}/core-sim || { print_alert "Failed to access workspace directory."; exit 1; }
+        git pull || { print_warning "Git pull failed. Continuing without pulling."; }
+    fi
+
+    colcon_build
+
     setup_directories_and_permissions
     enable_hardware_modules
     configure_can_interface
@@ -125,4 +157,10 @@ function main() {
 }
 
 # --- Script Entrypoint ---
+if [ "$EUID" -ne 0 ]; then
+  print_warning "This script must be run as root."
+  echo "Please run with sudo: sudo $0"
+  exit 1
+fi
+
 main "$@"

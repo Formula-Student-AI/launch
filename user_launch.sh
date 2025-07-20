@@ -10,3 +10,4 @@ echo "Launching ROS scripts"
 /home/bristol-fsai/launch/ros_bag_script.sh &
 /home/bristol-fsai/launch/ros_script_1.sh &
 /home/bristol-fsai/launch/ros_script_2.sh &
+/home/bristol-fsai/launch/io_logger.sh &
