@@ -28,7 +28,7 @@ function check_internet_connection() {
 # --- Core Functions ---
 
 function colcon_build() {
-    print_stage "STAGE 1: Setting up Directories & Permissions"
+    print_stage "STAGE 1: Building ROS Workspace"
     print_info "Colcon building repo"
 
     cd "${WORKSPACE_DIR}/core-sim"
@@ -43,6 +43,7 @@ function colcon_build() {
 # @brief Sets up necessary directories and file permissions.
 ##
 function setup_directories_and_permissions() {    
+    print_stage "STAGE 2: Setting up Directories & Permissions"
     print_info "Creating log directory: ${WORKSPACE_DIR}/logs"
     mkdir -p "${WORKSPACE_DIR}/logs"
     
@@ -59,18 +60,19 @@ function setup_directories_and_permissions() {
 # @brief Enables NVIDIA drivers and CAN kernel modules.
 ##
 function enable_hardware_modules() {
-    print_stage "STAGE 2: Enabling Hardware Modules"
-    
-    print_info "Selecting NVIDIA drivers and loading module..."
-    prime-select nvidia
-    modprobe nvidia
-    
-    print_info "Loading CAN kernel modules..."
-    modprobe can_dev
-    modprobe can
-    modprobe can_raw
-    modprobe vcan
-    
+    print_stage "STAGE 3: Enabling Hardware Modules"
+    echo "Enabling NVIDIA drivers"
+    sudo prime-select nvidia
+    sudo modprobe nvidia
+    echo "Enabled NVIDIA drivers"
+
+    # Enable CAN modules
+    echo "Enabling can modules"
+    sudo modprobe can_dev
+    sudo modprobe can
+    sudo modprobe can_raw
+    sudo modprobe vcan
+
     print_success "Hardware modules enabled."
 }
 
@@ -79,7 +81,7 @@ function enable_hardware_modules() {
 # @note Skips gracefully if the can0 interface is not available.
 ##
 function configure_can_interface() {
-    print_stage "STAGE 3: Configuring CAN0 Interface"
+    print_stage "STAGE 4: Configuring CAN0 Interface"
     
     # Check if the CAN interface exists before trying to configure it
     if ip link set up can0 type can bitrate 500000 &>/dev/null; then
@@ -98,10 +100,64 @@ function configure_can_interface() {
 }
 
 ##
+# @brief Starts a background I/O logger for system metrics.
+##
+function start_io_logger() {
+    print_stage "STAGE 5: Starting System I/O Logger"
+    print_info "Starting background I/O logger..."
+
+    # Use a 'heredoc' to run the logger script as the specified user in the background.
+    # Variables from the parent script (like ${WORKSPACE_DIR}) are expanded.
+    # Variables for the user's subshell must be escaped with a backslash (\$).
+    su - ${FSAI_USER} <<EOF &
+# This script runs as the user in the background to log system metrics.
+set -e
+
+LOGFILE="${WORKSPACE_DIR}/logs/io_logs_\$(date +%Y-%m-%d_%H-%M-%S).csv"
+INTERVAL=5
+
+# Write CSV header
+echo "Timestamp,CPU_Usage(%),Disk_Read(kB/s),Disk_Write(kB/s),GPU_Usage(%),GPU_Memory_Usage(%)" > "\$LOGFILE"
+
+while true; do
+    TIMESTAMP=\$(date +"%Y-%m-%d %H:%M:%S")
+
+    # CPU Usage: user+system from mpstat (100 - idle%)
+    CPU_USAGE=\$(mpstat 1 1 | awk '/Average:/ {print 100 - \$NF}')
+
+    # Disk I/O: using iostat. Sums read/write for all block devices.
+    DISK_IO=(\$(iostat -d -k 1 2 | grep -A1 "^Device" | tail -n +2 | awk '{read+=\$3; write+=\$4} END {print read, write}'))
+    DISK_READ=\${DISK_IO[0]:-0}
+    DISK_WRITE=\${DISK_IO[1]:-0}
+
+    # GPU Usage and Memory Usage: using nvidia-smi
+    if command -v nvidia-smi &> /dev/null; then
+        GPU_STATS=\$(nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits)
+        GPU_UTIL=\$(echo "\$GPU_STATS" | awk -F',' '{print \$1}')
+        GPU_MEM_USED=\$(echo "\$GPU_STATS" | awk -F',' '{print \$2}')
+        GPU_MEM_TOTAL=\$(echo "\$GPU_STATS" | awk -F',' '{print \$3}')
+        GPU_MEM_USAGE=\$(awk "BEGIN {printf \"%.2f\", (\$GPU_MEM_USED/\$GPU_MEM_TOTAL)*100}")
+    else
+        GPU_UTIL="N/A"
+        GPU_MEM_USAGE="N/A"
+    fi
+
+    # Append to log file
+    echo "\$TIMESTAMP,\$CPU_USAGE,\$DISK_READ,\$DISK_WRITE,\$GPU_UTIL,\$GPU_MEM_USAGE" >> "\$LOGFILE"
+
+    sleep \$INTERVAL
+done
+EOF
+
+    print_success "I/O logger dispatched to run in the background."
+}
+
+
+##
 # @brief Launches the ROS 2 nodes as the specified user.
 ##
 function launch_ros_nodes() {
-    print_stage "STAGE 4: Launching ROS Nodes as '${FSAI_USER}'"
+    print_stage "STAGE 6: Launching ROS Nodes as '${FSAI_USER}'"
     
     # Use a 'heredoc' to execute a multi-line script as the user.
     # By not quoting 'EOF', we pass variables like ${WORKSPACE_DIR} from this script.
@@ -139,16 +195,17 @@ function main() {
     # --- Check for Internet Connection and Git Pull ---
     check_internet_connection
     if [ $? -eq 0 ]; then
-        print_info "Pulling latest changes from git..."
-        cd ${WORKSPACE_DIR}/core-sim || { print_alert "Failed to access workspace directory."; exit 1; }
-        git pull || { print_warning "Git pull failed. Continuing without pulling."; }
+        print_info "Pulling latest changes from git as user '${FSAI_USER}'..."
+        if ! su - ${FSAI_USER} -c "cd '${WORKSPACE_DIR}/core-sim' && git pull"; then
+            print_warning "Git pull failed. Continuing with the existing local version."
+        fi
     fi
 
     colcon_build
-
     setup_directories_and_permissions
     enable_hardware_modules
     configure_can_interface
+    start_io_logger
     launch_ros_nodes
     
     print_stage "🏁 LAUNCH SCRIPT COMPLETE"
