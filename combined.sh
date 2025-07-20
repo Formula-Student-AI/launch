@@ -17,7 +17,7 @@ print_stage() { echo -e "\e[1;34m\n================================\n$1\n=======
 function check_internet_connection() {
     print_info "Checking for internet connection..."
     if ping -c 1 google.com &>/dev/null; then
-        print_success "Internet connection detected. Pulling git changes"
+        print_success "Internet connection detected. Checking for updates."
         return 0
     else
         print_warning "No internet connection detected. Skipping git pull."
@@ -29,29 +29,32 @@ function check_internet_connection() {
 
 function colcon_build() {
     print_stage "STAGE 1: Building ROS Workspace"
-    print_info "Colcon building repo"
+    print_info "Colcon building repo due to new changes..."
+    
+    # Run the build as the target user to ensure correct file ownership
+    su - ${FSAI_USER} -c "cd '${WORKSPACE_DIR}/core-sim' && \
+        source /opt/ros/galactic/setup.bash && \
+        source install/setup.bash && \
+        colcon build --symlink-install --cmake-args=-DCMAKE_BUILD_TYPE=Release"
 
-    cd "${WORKSPACE_DIR}/core-sim"
-    source install/setup.bash
-    source /opt/ros/galactic/setup.bash
-    colcon build --symlink-install --cmake-args=-DCMAKE_BUILD_TYPE=Release
-
-    print_success "Successfully rebuilt"
+    print_success "Successfully rebuilt workspace."
 }
 
 ##
 # @brief Sets up necessary directories and file permissions.
 ##
-function setup_directories_and_permissions() {    
+function setup_directories_and_permissions() {
     print_stage "STAGE 2: Setting up Directories & Permissions"
     print_info "Creating log directory: ${WORKSPACE_DIR}/logs"
     mkdir -p "${WORKSPACE_DIR}/logs"
     
     print_info "Setting ownership for '${FSAI_USER}'"
-    chown ${FSAI_USER}:${FSAI_USER} "${WORKSPACE_DIR}/logs"
+    chown -R ${FSAI_USER}:${FSAI_USER} "${WORKSPACE_DIR}"
     
     print_info "Setting permissions on helper scripts"
-    chmod +x "${WORKSPACE_DIR}/launch/scripts/restart.sh"
+    if [ -f "${WORKSPACE_DIR}/launch/scripts/restart.sh" ]; then
+        chmod +x "${WORKSPACE_DIR}/launch/scripts/restart.sh"
+    fi
     
     print_success "Directories and permissions are set."
 }
@@ -107,8 +110,6 @@ function start_io_logger() {
     print_info "Starting background I/O logger..."
 
     # Use a 'heredoc' to run the logger script as the specified user in the background.
-    # Variables from the parent script (like ${WORKSPACE_DIR}) are expanded.
-    # Variables for the user's subshell must be escaped with a backslash (\$).
     su - ${FSAI_USER} <<EOF &
 # This script runs as the user in the background to log system metrics.
 set -e
@@ -121,16 +122,11 @@ echo "Timestamp,CPU_Usage(%),Disk_Read(kB/s),Disk_Write(kB/s),GPU_Usage(%),GPU_M
 
 while true; do
     TIMESTAMP=\$(date +"%Y-%m-%d %H:%M:%S")
-
-    # CPU Usage: user+system from mpstat (100 - idle%)
     CPU_USAGE=\$(mpstat 1 1 | awk '/Average:/ {print 100 - \$NF}')
-
-    # Disk I/O: using iostat. Sums read/write for all block devices.
     DISK_IO=(\$(iostat -d -k 1 2 | grep -A1 "^Device" | tail -n +2 | awk '{read+=\$3; write+=\$4} END {print read, write}'))
     DISK_READ=\${DISK_IO[0]:-0}
     DISK_WRITE=\${DISK_IO[1]:-0}
 
-    # GPU Usage and Memory Usage: using nvidia-smi
     if command -v nvidia-smi &> /dev/null; then
         GPU_STATS=\$(nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits)
         GPU_UTIL=\$(echo "\$GPU_STATS" | awk -F',' '{print \$1}')
@@ -142,9 +138,7 @@ while true; do
         GPU_MEM_USAGE="N/A"
     fi
 
-    # Append to log file
     echo "\$TIMESTAMP,\$CPU_USAGE,\$DISK_READ,\$DISK_WRITE,\$GPU_UTIL,\$GPU_MEM_USAGE" >> "\$LOGFILE"
-
     sleep \$INTERVAL
 done
 EOF
@@ -158,10 +152,8 @@ EOF
 ##
 function launch_ros_nodes() {
     print_stage "STAGE 6: Launching ROS Nodes as '${FSAI_USER}'"
-    
+
     # Use a 'heredoc' to execute a multi-line script as the user.
-    # By not quoting 'EOF', we pass variables like ${WORKSPACE_DIR} from this script.
-    # Variables for the user's shell must be escaped with a backslash (\$).
     su - ${FSAI_USER} <<EOF
 # Exit immediately if any command in this user script fails
 set -e
@@ -192,22 +184,46 @@ EOF
 function main() {
     print_stage "🚀 Starting FSAI System Launch for user '${FSAI_USER}'"
 
+    NEEDS_BUILD=false # Default to not needing a rebuild
+
     # --- Check for Internet Connection and Git Pull ---
     check_internet_connection
     if [ $? -eq 0 ]; then
-        print_info "Pulling latest changes from git as user '${FSAI_USER}'..."
+        print_info "Checking for git updates..."
+        
+        # Get the current commit hash before pulling
+        OLD_HEAD=$(su - ${FSAI_USER} -c "cd '${WORKSPACE_DIR}/core-sim' && git rev-parse HEAD")
+        
+        # Attempt to pull changes
         if ! su - ${FSAI_USER} -c "cd '${WORKSPACE_DIR}/core-sim' && git pull"; then
             print_warning "Git pull failed. Continuing with the existing local version."
+        else
+            # If pull succeeded, get the new commit hash
+            NEW_HEAD=$(su - ${FSAI_USER} -c "cd '${WORKSPACE_DIR}/core-sim' && git rev-parse HEAD")
+            if [ "$OLD_HEAD" != "$NEW_HEAD" ]; then
+                print_success "✅ New changes pulled from git. Workspace will be rebuilt."
+                NEEDS_BUILD=true
+            else
+                print_info "✅ Git repository is already up to date."
+            fi
         fi
     fi
 
-    colcon_build
+    # --- Conditional Build ---
+    if [ "$NEEDS_BUILD" = true ]; then
+        colcon_build
+    else
+        print_stage "STAGE 1: Skipping ROS Workspace Build"
+        print_info "No new git changes were detected that require a rebuild."
+    fi
+    
+    # --- Continue with the rest of the startup sequence ---
     setup_directories_and_permissions
     enable_hardware_modules
     configure_can_interface
     start_io_logger
     launch_ros_nodes
-    
+
     print_stage "🏁 LAUNCH SCRIPT COMPLETE"
     print_info "The system is now running in the background."
     print_info "Monitor logs in ${WORKSPACE_DIR}/logs for status."
@@ -215,9 +231,9 @@ function main() {
 
 # --- Script Entrypoint ---
 if [ "$EUID" -ne 0 ]; then
-  print_warning "This script must be run as root."
-  echo "Please run with sudo: sudo $0"
-  exit 1
+    print_warning "This script must be run as root."
+    echo "Please run with sudo: sudo $0"
+    exit 1
 fi
 
 main "$@"
