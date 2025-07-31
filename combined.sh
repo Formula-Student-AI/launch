@@ -13,7 +13,6 @@ print_alert() { echo -e "\e[31m[ALERT] $1\e[0m"; }
 print_action() { echo -e "\n\e[31m[ACTION REQUIRED] $1\e[0m"; }
 print_stage() { echo -e "\e[1;34m\n================================\n$1\n================================\e[0m"; }
 
-# --- Check for Internet Connectivity ---
 function check_internet_connection() {
     print_info "Checking for internet connection..."
     if ping -c 1 google.com &>/dev/null; then
@@ -24,8 +23,6 @@ function check_internet_connection() {
         return 1
     fi
 }
-
-# --- Core Functions ---
 
 function colcon_build() {
     print_stage "STAGE 1: Building ROS Workspace"
@@ -40,9 +37,6 @@ function colcon_build() {
     print_success "Successfully rebuilt workspace."
 }
 
-##
-# @brief Sets up necessary directories and file permissions.
-##
 function setup_directories_and_permissions() {
     print_stage "STAGE 2: Setting up Directories & Permissions"
     print_info "Creating log directory: ${WORKSPACE_DIR}/logs"
@@ -59,15 +53,16 @@ function setup_directories_and_permissions() {
     print_success "Directories and permissions are set."
 }
 
-##
-# @brief Enables NVIDIA drivers and CAN kernel modules.
-##
 function enable_hardware_modules() {
     print_stage "STAGE 3: Enabling Hardware Modules"
-    echo "Enabling NVIDIA drivers"
-    sudo prime-select nvidia
-    sudo modprobe nvidia
-    echo "Enabled NVIDIA drivers"
+    if lspci | grep -i -q nvidia; then
+        echo "Enabling NVIDIA drivers"
+        sudo prime-select nvidia
+        sudo modprobe nvidia
+        echo "Enabled NVIDIA drivers"
+    else
+        print_warning "No NVIDIA GPU detected. Skipping NVIDIA driver setup."
+    fi
 
     # Enable CAN modules
     echo "Enabling can modules"
@@ -79,10 +74,6 @@ function enable_hardware_modules() {
     print_success "Hardware modules enabled."
 }
 
-##
-# @brief Configures the CAN0 interface and starts a logger.
-# @note Skips gracefully if the can0 interface is not available.
-##
 function configure_can_interface() {
     print_stage "STAGE 4: Configuring CAN0 Interface"
     
@@ -102,14 +93,10 @@ function configure_can_interface() {
     fi
 }
 
-##
-# @brief Starts a background I/O logger for system metrics.
-##
 function start_io_logger() {
     print_stage "STAGE 5: Starting System I/O Logger"
     print_info "Starting background I/O logger..."
 
-    # Use a 'heredoc' to run the logger script as the specified user in the background.
     su - ${FSAI_USER} <<EOF &
 # This script runs as the user in the background to log system metrics.
 set -e
@@ -146,14 +133,9 @@ EOF
     print_success "I/O logger dispatched to run in the background."
 }
 
-
-##
-# @brief Launches the ROS 2 nodes as the specified user.
-##
 function launch_ros_nodes() {
     print_stage "STAGE 6: Launching ROS Nodes as '${FSAI_USER}'"
 
-    # Use a 'heredoc' to execute a multi-line script as the user.
     su - ${FSAI_USER} <<EOF
 # Exit immediately if any command in this user script fails
 set -e
@@ -178,15 +160,11 @@ print_success "ROS launch commands dispatched."
 EOF
 }
 
-##
-# @brief Main execution function.
-##
 function main() {
     print_stage "🚀 Starting FSAI System Launch for user '${FSAI_USER}'"
 
     NEEDS_BUILD=false # Default to not needing a rebuild
 
-    # --- Check for Internet Connection and Git Pull ---
     check_internet_connection
     if [ $? -eq 0 ]; then
         print_info "Checking for git updates..."
@@ -217,7 +195,6 @@ function main() {
         print_info "No new git changes were detected that require a rebuild."
     fi
     
-    # --- Continue with the rest of the startup sequence ---
     setup_directories_and_permissions
     enable_hardware_modules
     configure_can_interface
@@ -229,7 +206,6 @@ function main() {
     print_info "Monitor logs in ${WORKSPACE_DIR}/logs for status."
 }
 
-# --- Script Entrypoint ---
 if [ "$EUID" -ne 0 ]; then
     print_warning "This script must be run as root."
     echo "Please run with sudo: sudo $0"
