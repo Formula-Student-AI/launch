@@ -12,37 +12,46 @@ LOG_DIR="/home/bristol-fsai/logs"
 # --- End Configuration ---
 
 
+# --- Helper Functions for Script Output ---
+print_info() { echo -e "\e[34m[INFO] $1\e[0m"; }
+print_success() { echo -e "\e[32m[SUCCESS] $1\e[0m"; }
+print_warning() { echo -e "\e[33m[WARNING] $1\e[0m"; }
+print_alert() { echo -e "\e[31m[ALERT] $1\e[0m"; }
+print_action() { echo -e "\n\e[31m[ACTION REQUIRED] $1\e[0m"; }
+print_stage() { echo -e "\e[1;34m\n================================\n$1\n================================\e[0m"; }
+# --- End Helper Functions ---
+
+
 # --- Argument Parsing ---
 # Default to not rebuilding.
 REBUILD=false
 # Check if the first argument is '-r'.
 if [[ "$1" == "-r" ]]; then
   REBUILD=true
-  echo "ℹ️  Rebuild flag '-r' detected. Workspace will be updated and rebuilt."
+  print_info "Rebuild flag '-r' detected. Workspace will be updated and rebuilt."
 fi
 # --- End Argument Parsing ---
 
 
-# Helper function to terminate a process by its command pattern.
-kill_process() {
-  local pattern="$1"
-  local name="$2" # A friendly name for logging.
-  
-  echo "🔎  Checking for '$name' process..."
+kill_ros_processes() {
+  local pattern="ros"
+  local name="ROS / ROS 2"
+
+  print_info "Checking for '$name' processes..."
   if pgrep -f "$pattern" > /dev/null; then
-    echo "⛔  Terminating '$name'..."
+    print_warning "Terminating all '$name' processes..."
     pkill -f "$pattern"
     sleep 2 # Allow time for graceful shutdown.
 
-    # If it's still alive, force the kill.
+    # If any are still alive, force the kill.
     if pgrep -f "$pattern" > /dev/null; then
-      echo "⚠️  Forcing kill on '$name' (SIGKILL)..."
+      print_alert "Forcing kill on remaining '$name' processes (SIGKILL)..."
       pkill -9 -f "$pattern"
       sleep 1
     fi
-    echo "✅  '$name' process stopped."
+    print_success "All '$name' processes stopped."
   else
-    echo "👍  No running '$name' process found."
+    print_success "No running '$name' processes found."
   fi
 }
 
@@ -52,7 +61,7 @@ start_ros_process() {
   local name="$2"
   local log_base_name="$3"
 
-  echo "🚀  Starting '$name' process..."
+  print_info "Starting '$name' process..."
   local log_file="${LOG_DIR}/${log_base_name}_$(date +%Y-%m-%d_%H-%M-%S).log"
 
   # Use nohup to run in the background and survive terminal closure.
@@ -62,75 +71,64 @@ start_ros_process() {
 
   # Verify it started by checking for its PID.
   if pgrep -f "$command" > /dev/null; then
-    echo "✅  Success! '$name' is running. Logging to: $log_file"
+    print_success "Success! '$name' is running. Logging to: $log_file"
   else
-    echo "❌  Error! Failed to start '$name'. Check logs in $LOG_DIR."
+    print_alert "Error! Failed to start '$name'. Check logs in $LOG_DIR."
   fi
 }
 
 # Helper function to start the CAN logger.
 start_can_logger() {
-    echo "WIP - manually restart candump for now"
+    print_warning "CAN logger start is a WIP - manually restart candump for now."
 }
 
 
 # --- Main Execution ---
-echo "🔄  Restarting all nodes and loggers..."
+print_info "Restarting all nodes and loggers..."
 
 # --- 1. ENVIRONMENT AND CODE SETUP ---
-echo
-echo "--- Sourcing ROS environment ---"
+print_stage "Sourcing ROS Environment"
 # Source the necessary ROS environment setup files.
 source /opt/ros/galactic/setup.bash
-echo "✅  ROS Galactic environment sourced."
-echo "--------------------------------"
+print_success "ROS Galactic environment sourced."
 
 # Navigate to the workspace directory.
-cd "$WORKSPACE_DIR" || { echo "❌ Error: Could not navigate to $WORKSPACE_DIR. Exiting."; exit 1; }
+cd "$WORKSPACE_DIR" || { print_alert "Could not navigate to $WORKSPACE_DIR. Exiting."; exit 1; }
 
 # Conditionally update and build the workspace if -r flag was passed.
 if [ "$REBUILD" = true ]; then
-  echo
-  echo "--- Updating and Building Workspace ---"
-  echo "⬇️  Pulling latest changes from git..."
+  print_stage "Updating and Building Workspace"
+  print_info "Pulling latest changes from git..."
   git pull
-  echo "✅  Git pull complete."
-  echo
-
-  echo "🛠️  Building workspace with colcon..."
+  print_success "Git pull complete."
+  
+  print_info "Building workspace with colcon..."
   colcon build --symlink-install --cmake-args=-DCMAKE_BUILD_TYPE=Release
-  echo "✅  Colcon build complete."
+  print_success "Colcon build complete."
 else
-  echo
-  echo "--- Skipping Rebuild (use -r to force) ---"
+  print_stage "Skipping Rebuild (use -r to force)"
 fi
-echo
 
-echo "📦  Sourcing the local workspace..."
+print_info "Sourcing the local workspace..."
 source install/setup.bash
-echo "✅  Workspace environment ready."
-echo "--------------------------------"
+print_success "Workspace environment ready."
 
 
 # Ensure the log directory exists.
 mkdir -p "$LOG_DIR"
 
 # --- 2. TERMINATION PHASE ---
-echo
-echo "--- Stopping all processes first ---"
-kill_process "$EUFS_CMD" "EUFS"
-kill_process "$ZED_CMD" "ZED Camera"
+print_stage "Stopping All Processes"
+kill_ros_processes # Stop all ROS processes
 # kill_process "$CAN_CMD" "CAN Logger"
-echo "--------------------------------"
 
 
 # --- 3. LAUNCH PHASE ---
-echo
-echo "--- Starting all processes now ---"
+print_stage "Starting All Processes"
 start_ros_process "$EUFS_CMD" "EUFS" "ros1"
 start_ros_process "$ZED_CMD" "ZED Camera" "ros2"
 start_can_logger # Start the CAN logger
-echo "------------------------------"
-echo "✅  Restart sequence complete."
+
+print_success "Restart sequence complete."
 
 exit 0
