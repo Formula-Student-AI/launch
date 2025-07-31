@@ -28,7 +28,7 @@ run_stage_1() {
 
     # --- Initial Setup ---
     print_info "Updating system packages..."
-    apt update > /dev/null && apt upgrade -y > /dev/null
+    apt-get update > /dev/null && apt-get upgrade -y > /dev/null
 
     print_info "Setting locale to en_US.UTF-8..."
     apt-get install -y locales > /dev/null
@@ -306,11 +306,6 @@ run_stage_3() {
     print_info "Open a NEW terminal as user '$FSAI_USER' to ensure all environment variables are loaded."
 }
 
-
-# ==============================================================================
-# SCRIPT EXECUTION LOGIC
-# ==============================================================================
-
 # Check for sudo privileges
 if [ "$EUID" -ne 0 ]; then
   print_warning "This script must be run as root."
@@ -333,6 +328,5 @@ elif [ "$(cat "$STATE_FILE")" = "STAGE_3" ]; then
 else
     print_warning "Invalid state found in $STATE_FILE. Removing state file."
     rm -f "$STATE_FILE"
-    print_info "Please re-run the script to start from the beginning."
-    exit 1
+    run_stage_1
 fi
