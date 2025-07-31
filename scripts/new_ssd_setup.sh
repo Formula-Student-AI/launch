@@ -44,22 +44,20 @@ run_stage_1() {
     print_info "Installing can-utils..."
     apt-get install -y can-utils > /dev/null
 
-    print_info "Installing Visual Studio Code..."
-    apt-get install -y wget gpg apt-transport-https > /dev/null
-    wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /usr/share/keyrings/packages.microsoft.gpg
-
-    # echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" | tee /etc/apt/sources.list.d/vscode.list > /dev/null
-    # Remove any existing conflicting VS Code sources
-    rm -f /etc/apt/sources.list.d/*code*.list
-
-    # Add Microsoft repo with consistent keyring
-    wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /usr/share/keyrings/packages.microsoft.gpg
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" \
-        | tee /etc/apt/sources.list.d/vscode.list > /dev/null
+    if command -v code &> /dev/null; then
+        print_success "Visual Studio Code is already installed."
+    else
+        print_info "Installing Visual Studio Code..."
+        apt-get install -y wget gpg apt-transport-https > /dev/null
+        wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /usr/share/keyrings/packages.microsoft.gpg
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" \
+            | tee /etc/apt/sources.list.d/vscode.list > /dev/null
 
         apt-get update > /dev/null
-    apt-get install -y code > /dev/null
-    print_success "Visual Studio Code installed successfully."
+        apt-get install -y code > /dev/null
+        print_success "Visual Studio Code installed successfully."
+    fi
+    
 
     print_info "Adding required repositories and installing ROS 2 Galactic..."
     apt-get install -y software-properties-common curl > /dev/null
@@ -68,7 +66,7 @@ run_stage_1() {
     mkdir -p /etc/apt/sources.list.d
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null
     apt-get update > /dev/null
-    apt-get install -y ros-galactic-desktop ros-dev-tools > /dev/null
+    apt-get install -y ros-galactic-desktop ros-dev-tools # This takes a while so display progress
 
     print_info "Sourcing ROS 2 environment in user's .bashrc..."
     if ! grep -q "source /opt/ros/galactic/setup.bash" /home/$FSAI_USER/.bashrc; then
@@ -114,11 +112,10 @@ run_stage_1() {
         su - ${FSAI_USER} -c "cd core-sim && git switch dev && git pull"
     fi
 
-    EUFS_MASTER_PATH="$WORKSPACE_DIR/core-sim"
+    CORE_SIM_PATH="$WORKSPACE_DIR/core-sim"
     if ! grep -q "export EUFS_MASTER" /home/$FSAI_USER/.bashrc; then
-      echo "export EUFS_MASTER=$EUFS_MASTER_PATH" >> /home/$FSAI_USER/.bashrc
+      echo "export EUFS_MASTER=$CORE_SIM_PATH" >> /home/$FSAI_USER/.bashrc
     fi
-    export EUFS_MASTER=$EUFS_MASTER_PATH
 
     print_info "Cloning FSAI Launch repository to set up rc.local service..."
     LAUNCH_CLONE_DIR="/home/$FSAI_USER/launch"
@@ -146,8 +143,8 @@ run_stage_1() {
     su - ${FSAI_USER} -c "rosdep update"
 
     print_info "Installing additional Python dependencies..."
-    su - ${FSAI_USER} -c "source /opt/ros/galactic/setup.bash && rosdep install --from-paths $EUFS_MASTER --ignore-src -r -y"
-    su - ${FSAI_USER} -c "pip install -r $EUFS_MASTER/eufs_sim/perception/requirements.txt"
+    su - ${FSAI_USER} -c "source /opt/ros/galactic/setup.bash && rosdep install --from-paths $CORE_SIM_PATH --ignore-src -r -y"
+    su - ${FSAI_USER} -c "pip install -r $CORE_SIM_PATH/eufs_sim/perception/requirements.txt"
     su - ${FSAI_USER} -c "pip install --upgrade numpy"
     apt-get install ros-galactic-vision-msgs -y > /dev/null
     print_success "Python dependencies installed successfully."
@@ -269,7 +266,7 @@ run_stage_2() {
 
 # --- Stage 3: Final Configuration and Build ---
 run_stage_3() {
-    EUFS_MASTER_PATH="$WORKSPACE_DIR/core-sim"
+    CORE_SIM_PATH="$WORKSPACE_DIR/core-sim"
     print_stage "STAGE 3: Final Configuration and Build"
 
     print_stage "Setting up permissions for zed folder"
@@ -283,12 +280,12 @@ run_stage_3() {
 
     print_info "Updating and installing all workspace dependencies with rosdep..."
     su - "${FSAI_USER}" -c "source /opt/ros/galactic/setup.bash"
-    rosdep install --from-paths $EUFS_MASTER_PATH --ignore-src -r -y
+    rosdep install --from-paths $CORE_SIM_PATH --ignore-src -r -y
 
     print_info "Building the complete workspace (as sudo)..."
     cd $WORKSPACE_DIR/core-sim
     source /opt/ros/galactic/setup.bash
-    source $EUFS_MASTER_PATH/install/setup.bash
+    source $CORE_SIM_PATH/install/setup.bash
     colcon build --symlink-install --cmake-args=-DCMAKE_BUILD_TYPE=Release
 
     print_info "Sourcing the final workspace overlay in user's .bashrc..."
