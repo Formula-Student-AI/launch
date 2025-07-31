@@ -4,8 +4,11 @@
 2. Make it executable (`chmod +x new_ssd_setup.sh`).
 3. Run it.
 
-It's mostly automatic - you will be prompted to add the SSH key to GitHub and to download and test the latest Zed SDK. It will also prompt for reboots
+It's mostly automatic - you will be prompted to add the SSH key to GitHub and to download and test the latest Zed SDK. It will also prompt for reboots. If it's a fresh Ubuntu install, you may not be in the sudoers group. Run `su` to switch to the root user, and then run the script.
 
+```bash
+sudo bash -c "wget -O - https://raw.githubusercontent.com/Formula-Student-AI/launch/refs/heads/main/scripts/new_ssd_setup.sh | bash"
+```
 
 ## Alternatively: Setting up the startup scripts (manually)
 These scripts assume that the user is `bristol-fsai`. Change this across all scripts if this isn't the case.
