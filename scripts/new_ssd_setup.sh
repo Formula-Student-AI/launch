@@ -28,7 +28,7 @@ run_stage_1() {
 
     # --- Initial Setup ---
     print_info "Updating system packages..."
-    apt-get update > /dev/null && apt-get upgrade -y > /dev/null
+    apt-get update > /dev/null && apt-get upgrade -y
 
     print_info "Setting locale to en_US.UTF-8..."
     apt-get install -y locales > /dev/null
