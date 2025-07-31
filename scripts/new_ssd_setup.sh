@@ -24,7 +24,7 @@ print_stage() { echo -e "\e[1;34m\n================================\n$1\n=======
 
 # --- Stage 1: Initial System and ROS Setup ---
 run_stage_1() {
-    print_stage "STAGE 1: System, ROS 2, and Optional NVIDIA Setup"
+    print_stage "STAGE 1: System Packages and ROS 2 Installation"
 
     # --- Initial Setup ---
     print_info "Updating system packages..."
@@ -44,6 +44,9 @@ run_stage_1() {
     print_info "Installing can-utils..."
     apt-get install -y can-utils > /dev/null
 
+    print_info "Installing sysstat..."
+    apt-get install -y sysstat > /dev/null
+
     if command -v code &> /dev/null; then
         print_success "Visual Studio Code is already installed."
     else
@@ -57,7 +60,6 @@ run_stage_1() {
         apt-get install -y code > /dev/null
         print_success "Visual Studio Code installed successfully."
     fi
-    
 
     print_info "Adding required repositories and installing ROS 2 Galactic..."
     apt-get install -y software-properties-common curl > /dev/null
